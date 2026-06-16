@@ -216,14 +216,50 @@
     #print-area{display:block;position:absolute;left:0;top:0;width:100%;padding:20px}
     .nav,.topbar,.fab{display:none!important}
   }
+
+  /* ── calendar range picker ── */
+  .cal-wrap{background:var(--surface);border-radius:var(--radius-md);border:1.5px solid var(--border);overflow:hidden;margin:4px 0}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff}
+  .cal-nav-btn{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:2px 10px;border-radius:6px;line-height:1}
+  .cal-nav-btn:hover{background:rgba(255,255,255,.2)}
+  .cal-month-lbl{font-weight:900;font-size:14px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:6px 8px 10px}
+  .cal-dow{text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);padding:5px 0}
+  .cal-day{text-align:center;font-size:13px;padding:7px 2px;cursor:pointer;border-radius:6px;transition:.1s;position:relative;min-height:32px;display:flex;align-items:center;justify-content:center}
+  .cal-day:not(.cal-empty):hover{background:var(--primary-light)}
+  .cal-day.cal-start{background:var(--primary)!important;color:#fff!important;font-weight:900;border-radius:6px 0 0 6px!important}
+  .cal-day.cal-end{background:var(--primary)!important;color:#fff!important;font-weight:900;border-radius:0 6px 6px 0!important}
+  .cal-day.cal-start.cal-end{border-radius:6px!important}
+  .cal-day.cal-in-range{background:var(--primary-light);border-radius:0;color:var(--primary-dark)}
+  .cal-day.cal-today{color:var(--primary);font-weight:900}
+  .cal-day.cal-start.cal-today,.cal-day.cal-end.cal-today{color:#fff}
+  .cal-today-dot{width:4px;height:4px;border-radius:50%;background:var(--primary);position:absolute;bottom:2px;left:50%;transform:translateX(-50%)}
+  .cal-day.cal-start .cal-today-dot,.cal-day.cal-end .cal-today-dot{background:#fff}
+  .cal-empty{cursor:default!important;background:none!important}
+  .cal-sel-info{display:flex;gap:8px;padding:8px 8px 4px;align-items:center}
+  .cal-sel-box{flex:1;padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg);border:1.5px solid var(--border);font-size:12px;font-weight:700;text-align:center;color:var(--text-muted);transition:.12s}
+  .cal-sel-box.cal-active{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+  /* ── emoji picker ── */
+  .emoji-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0 4px}
+  .emoji-btn{font-size:26px;padding:8px 4px;border:2px solid transparent;border-radius:10px;background:var(--bg);cursor:pointer;transition:.12s;line-height:1;text-align:center}
+  .emoji-btn:hover{background:var(--primary-light);transform:scale(1.08)}
+  .emoji-btn.on{background:var(--primary-light);border-color:var(--primary)}
+  /* ── standardized due-tag ── */
+  .due-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#fef3c7;color:#92400e;white-space:nowrap}
+  .due-tag.over{background:var(--danger-light);color:var(--danger)}
+  /* ── per-trip role overlay ── */
+  .role-overlay{position:fixed;inset:0;background:linear-gradient(160deg,var(--primary),var(--accent));z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
+  .role-overlay.show{display:flex;animation:fade .25s}
+  .role-overlay h1{font-size:22px;margin:0 0 6px;font-weight:900}
+  .role-overlay p{opacity:.9;font-size:13px;margin:0 0 20px}
   </style>
 </head>
 <body>
 
-  <div class="lock" id="lock">
-    <div style="font-size:54px;margin-bottom:10px">🧳</div>
-    <h1>一起去旅行</h1>
-    <p>選擇你是誰，開始共同規劃行程</p>
+  <div class="role-overlay" id="role-overlay">
+    <div style="font-size:48px;margin-bottom:10px">🧳</div>
+    <h1 id="role-overlay-title">加入旅程</h1>
+    <p id="role-overlay-sub">選擇或建立你的身分，開始共同規劃</p>
     <div class="role-grid" id="role-grid"></div>
   </div>
 
@@ -234,7 +270,7 @@
         <div class="topbar-sub" id="tb-sub">一起規劃完美旅程</div>
         <div class="sync-badge" id="tb-sync"></div>
       </div>
-      <button class="me-btn" id="me-btn" onclick="openMe()"><span class="me-dot"></span><span id="me-name">我</span></button>
+      <button class="me-btn" id="me-btn" onclick="openMe()"><span class="me-dot"></span><span id="me-name">身分</span></button>
     </div>
   </div>
 
@@ -274,10 +310,14 @@ try{
 const ref=(p='')=>db?db.ref(ROOT+(p?'/'+p:'')):{on:()=>{},off:()=>{},set:()=>Promise.resolve(),update:()=>Promise.resolve(),remove:()=>Promise.resolve()};
 
 let DATA={};
-let ME=localStorage.getItem('tv_me')||'';
+let _myRoles=JSON.parse(localStorage.getItem('tv_my_roles')||'{}');
+let ME='';
 let ACTIVE=localStorage.getItem('tv_trip')||'';
 let CURPAGE=localStorage.getItem('tv_page')||'trips';
 const DEFAULT_ROLES=[['我','😎'],['夥伴','🧑‍🤝‍🧑'],['家人','👨‍👩‍👧'],['朋友','🐱']];
+const PERSON_EMOJIS=['😎','🧑','👧','👦','👩','👨','🧔','👩‍🦰','🦊','🐻','🐼','🐰','🦄','🐨','🐸','🐙','🐱','🐶','🦁','🐯'];
+function syncMe(){ ME=_myRoles[ACTIVE]||''; }
+function setMeForTrip(tripId,name){ _myRoles[tripId]=name; localStorage.setItem('tv_my_roles',JSON.stringify(_myRoles)); if(tripId===ACTIVE) ME=name; }
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=(s)=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -432,40 +472,85 @@ function updateSyncBadge(ok){
 function handleInviteParam(){
   const p=new URLSearchParams(location.search); const t=p.get('t');
   if(t && DATA.trips && DATA.trips[t] && t!==ACTIVE){
-    ACTIVE=t; localStorage.setItem('tv_trip',t); go('itin'); toast('已加入：'+DATA.trips[t].name);
+    ACTIVE=t; localStorage.setItem('tv_trip',t); syncMe(); go('itin'); toast('已加入：'+DATA.trips[t].name);
+    if(!ME) setTimeout(()=>showRolePicker(t),500);
   }
 }
 
-/* ════════════ 角色 ════════════ */
-function roleList(){
-  const r=DATA.roles||{}; let arr=Object.keys(r).map(k=>[r[k].name,r[k].emoji||'🙂',k]);
+/* ════════════ 角色（Per-trip） ════════════ */
+function tripRoles(tripId){ return (DATA.trips&&DATA.trips[tripId||ACTIVE]&&DATA.trips[tripId||ACTIVE].roles)||{}; }
+function roleList(tripId){
+  const r=tripRoles(tripId||ACTIVE);
+  let arr=Object.keys(r).map(k=>[r[k].name,r[k].emoji||'😎',k]);
   if(arr.length===0) arr=DEFAULT_ROLES.map(x=>[x[0],x[1],null]);
   return arr;
 }
-function renderRoles(){
-  const arr=roleList();
+function renderRoles(tripId){
+  const tId=tripId||ACTIVE;
+  const arr=roleList(tId);
+  const trip=DATA.trips&&DATA.trips[tId];
+  if($('role-overlay-title')) $('role-overlay-title').textContent=trip?'加入「'+trip.name+'」':'加入旅程';
   $('role-grid').innerHTML=arr.map(([n,e])=>
-    `<button class="role-btn" data-n="${esc(n)}" onclick="pickRole(this.dataset.n)"><span class="rb-emoji">${e}</span>${esc(n)}</button>`
-  ).join('')+`<button class="role-btn role-add" onclick="addRole()"><span class="rb-emoji">＋</span>新增成員</button>`;
+    `<button class="role-btn" data-n="${esc(n)}" onclick="pickRole('${tId}',this.dataset.n)"><span class="rb-emoji">${e}</span>${esc(n)}</button>`
+  ).join('')+`<button class="role-btn role-add" onclick="addRoleToTrip('${tId}')"><span class="rb-emoji">＋</span>新增成員</button>`;
+}
+function showRolePicker(tripId){
+  renderRoles(tripId||ACTIVE);
+  $('role-overlay').classList.add('show');
 }
 function ensureDefaultRoles(){
-  if(!DATA.roles||Object.keys(DATA.roles).length===0){
-    const o={}; DEFAULT_ROLES.forEach(([n,e])=>{const k=uid();o[k]={name:n,emoji:e};}); fbSet('roles',o);
+  if(!ACTIVE||!DATA.trips||!DATA.trips[ACTIVE]) return;
+  if(!DATA.trips[ACTIVE].roles||Object.keys(DATA.trips[ACTIVE].roles).length===0){
+    const o={}; DEFAULT_ROLES.forEach(([n,e])=>{const k=uid();o[k]={name:n,emoji:e};});
+    fbUpdate('trips/'+ACTIVE,{roles:o});
   }
 }
-function addRole(){
+function addRoleToTrip(tripId){
   appPrompt('成員名稱？','',n=>{
     if(!n||!n.trim())return;
-    const emojis=['🐰','🐻','🦊','🐼','🐧','🦄','🐯','🐨','🌟','🍡']; const e=emojis[Math.floor(Math.random()*emojis.length)];
-    fbSet('roles/'+uid(),{name:n.trim(),emoji:e}); setTimeout(()=>pickRole(n.trim()),100);
+    const e=PERSON_EMOJIS[Math.floor(Math.random()*PERSON_EMOJIS.length)];
+    fbUpdate('trips/'+tripId,{['roles/'+uid()]:{name:n.trim(),emoji:e}});
+    setTimeout(()=>pickRole(tripId,n.trim()),200);
   });
 }
-function pickRole(name){ ME=name; localStorage.setItem('tv_me',name); $('lock').style.display='none'; renderAll(); }
+function pickRole(tripId,name){
+  setMeForTrip(tripId,name);
+  $('role-overlay').classList.remove('show');
+  syncMe(); renderAll();
+}
+let _pendingEmoji='';
 function openMe(){
-  const arr=roleList();
-  modal(`<div class="modal-title">切換成員</div><p style="color:var(--text-muted);font-size:12px;margin:2px 0 14px">目前：${esc(ME)}</p>
-  <div class="role-grid" style="grid-template-columns:repeat(2,1fr)">${arr.map(([n,e])=>`<button class="role-btn" style="background:var(--bg);border-color:var(--border);color:var(--text-primary)" data-n="${esc(n)}" onclick="pickRole(this.dataset.n);closeModal()"><span class="rb-emoji">${e}</span>${esc(n)}</button>`).join('')}
-  <button class="role-btn role-add" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary-dark)" onclick="closeModal();addRole()"><span class="rb-emoji">＋</span>新增</button></div>`);
+  if(!ACTIVE) return;
+  if(!ME){ showRolePicker(ACTIVE); return; }
+  const r=tripRoles(ACTIVE);
+  const myKey=Object.keys(r).find(k=>r[k].name===ME);
+  const curEmoji=(myKey&&r[myKey].emoji)||'😎';
+  _pendingEmoji=curEmoji;
+  modal(`<div class="modal-title">${fi('user',16)} 修改身分</div>
+    <label class="fld">暱稱</label>
+    <input class="tag-input" id="me-nameInput" value="${esc(ME)}" placeholder="你的名字">
+    <label class="fld">頭像</label>
+    <div class="emoji-grid" id="me-emoji-grid">
+      ${PERSON_EMOJIS.map(e=>`<button class="emoji-btn${e===curEmoji?' on':''}" onclick="meEmojiPick('${e}')">${e}</button>`).join('')}
+    </div>
+    <div class="modal-acts" style="margin-top:12px">
+      <button class="btn gray" onclick="closeModal()">取消</button>
+      <button class="btn" style="flex:1" onclick="saveMyIdentity()">儲存</button>
+    </div>`);
+}
+function meEmojiPick(e){
+  _pendingEmoji=e;
+  document.querySelectorAll('#me-emoji-grid .emoji-btn').forEach(b=>b.classList.toggle('on',b.textContent.trim()===e));
+}
+function saveMyIdentity(){
+  const name=$('me-nameInput').value.trim(); if(!name){toast('請輸入暱稱');return;}
+  const r=tripRoles(ACTIVE);
+  let key=Object.keys(r).find(k=>r[k].name===ME);
+  const emoji=_pendingEmoji||'😎';
+  if(key){ fbUpdate('trips/'+ACTIVE+'/roles/'+key,{name,emoji}); }
+  else{ fbUpdate('trips/'+ACTIVE,{['roles/'+uid()]:{name,emoji}}); }
+  setMeForTrip(ACTIVE,name); syncMe(); _pendingEmoji='';
+  closeModal(); toast('已更新');
 }
 
 /* ════════════ 導覽 / Modal ════════════ */
@@ -557,10 +642,8 @@ function fmtTs(ts){ if(!ts)return''; const d=new Date(ts); return d.getFullYear(
 
 /* ════════════ 總渲染 ════════════ */
 function renderAll(){
-  ensureDefaultRoles();
-  if(!ME){ renderRoles(); $('lock').style.display='flex'; return; }
-  $('lock').style.display='none';
-  $('me-name').textContent=ME;
+  syncMe(); ensureDefaultRoles();
+  $('me-name').textContent=ME||'身分';
   const trip=DATA.trips&&DATA.trips[ACTIVE];
   $('tb-title').textContent=trip?trip.name:'旅遊行程';
   $('tb-sub').textContent=trip?(esc(trip.dest||'')+(trip.startDate?' · '+trip.startDate.replace(/-/g,'/')+(trip.endDate?'~'+trip.endDate.replace(/-/g,'/'):'')+' ':' ') ):'一起規劃完美旅程';
@@ -598,7 +681,11 @@ function renderTrips(){
   }).join('');
   $('trips-wrap').innerHTML=h;
 }
-function selectTrip(id){ ACTIVE=id; localStorage.setItem('tv_trip',id); go('itin'); }
+function selectTrip(id){
+  ACTIVE=id; localStorage.setItem('tv_trip',id); syncMe();
+  go('itin');
+  if(!ME) setTimeout(()=>showRolePicker(id),300);
+}
 function tripMenu(id){
   const t=DATA.trips[id];
   modal(`<div class="modal-title">${esc(t.name)}</div>
@@ -628,23 +715,83 @@ function shareTrip(id){
 }
 function copyText(t){ navigator.clipboard?navigator.clipboard.writeText(t).then(()=>toast('已複製')):toast(t); }
 
+let _cal={year:new Date().getFullYear(),month:new Date().getMonth(),start:'',end:''};
 function editTrip(id){
   const t=(id&&DATA.trips&&DATA.trips[id])||{};
+  const tripType=t.type||'international';
+  const sDate=t.startDate||''; const eDate=t.endDate||'';
+  _cal={year:sDate?parseInt(sDate.slice(0,4)):new Date().getFullYear(),month:sDate?parseInt(sDate.slice(5,7))-1:new Date().getMonth(),start:sDate,end:eDate};
   modal(`<div class="modal-title">${id?'編輯旅程':'新增旅程'}</div>
+    <label class="fld">旅程類型</label>
+    <div class="seg" id="trip-type-seg">
+      <button data-v="domestic" class="${tripType==='domestic'?'on':''}" onclick="segPick('trip-type-seg','domestic')">🏠 國內旅遊</button>
+      <button data-v="international" class="${tripType==='international'?'on':''}" onclick="segPick('trip-type-seg','international')">✈️ 國際旅遊</button>
+    </div>
     <label class="fld">旅程名稱</label><input class="tag-input" id="f-name" placeholder="例：東京賞櫻 2026" value="${esc(t.name||'')}">
     <label class="fld">目的地</label><input class="tag-input" id="f-dest" placeholder="例：東京、首爾" value="${esc(t.dest||'')}">
-    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">出發日</label><input type="date" class="tag-input" id="f-start" value="${esc(t.startDate||'')}"></div>
-    <div style="flex:1"><label class="fld">回程日</label><input type="date" class="tag-input" id="f-end" value="${esc(t.endDate||'')}"></div></div>
+    <label class="fld">出發 ～ 回程日期</label>
+    <div class="cal-sel-info">
+      <div class="cal-sel-box${sDate?' cal-active':''}" id="cal-sel-start">${sDate?sDate.slice(5).replace('-','/'):'點選出發日'}</div>
+      <span style="color:var(--text-muted);font-size:13px;flex-shrink:0">→</span>
+      <div class="cal-sel-box${eDate?' cal-active':''}" id="cal-sel-end">${eDate?eDate.slice(5).replace('-','/'):'點選回程日'}</div>
+    </div>
+    <div class="cal-wrap" id="trip-cal"></div>
+    <input type="hidden" id="f-start" value="${esc(sDate)}">
+    <input type="hidden" id="f-end" value="${esc(eDate)}">
     <label class="fld">當地幣別（例：JPY、KRW）</label><input class="tag-input" id="f-cur" placeholder="JPY" value="${esc(t.currency||'')}">
     <div class="modal-acts"><button class="btn gray" style="flex:1" onclick="closeModal()">取消</button><button class="btn" style="flex:2" onclick="saveTrip('${id||''}')">儲存</button></div>`);
+  setTimeout(renderTripCal,0);
+}
+function renderTripCal(){
+  const el=$('trip-cal'); if(!el)return;
+  const {year,month,start,end}=_cal;
+  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const firstDow=new Date(year,month,1).getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const todayStr=new Date().toISOString().slice(0,10);
+  let h=`<div class="cal-head"><button class="cal-nav-btn" onclick="calNavTrip(-1)">◀</button><span class="cal-month-lbl">${year}年${months[month]}</span><button class="cal-nav-btn" onclick="calNavTrip(1)">▶</button></div>`;
+  h+=`<div class="cal-grid">`;
+  ['日','一','二','三','四','五','六'].forEach(d=>{ h+=`<div class="cal-dow">${d}</div>`; });
+  for(let i=0;i<firstDow;i++) h+=`<div class="cal-day cal-empty"></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isS=ds===start,isE=ds===end,inR=start&&end&&ds>start&&ds<end,isT=ds===todayStr;
+    let cls='cal-day';
+    if(isS)cls+=' cal-start';if(isE)cls+=' cal-end';if(inR)cls+=' cal-in-range';if(isT)cls+=' cal-today';
+    h+=`<div class="${cls}" onclick="calPickTrip('${ds}')">${d}${isT?'<span class=\"cal-today-dot\"></span>':''}</div>`;
+  }
+  h+=`</div>`;
+  el.innerHTML=h;
+}
+function calNavTrip(dir){
+  _cal.month+=dir;
+  if(_cal.month>11){_cal.month=0;_cal.year++;}
+  if(_cal.month<0){_cal.month=11;_cal.year--;}
+  renderTripCal();
+}
+function calPickTrip(ds){
+  if(!_cal.start||(_cal.start&&_cal.end)){
+    _cal.start=ds; _cal.end='';
+  } else {
+    if(ds<_cal.start){_cal.end=_cal.start;_cal.start=ds;}
+    else if(ds===_cal.start){_cal.start='';}
+    else{_cal.end=ds;}
+  }
+  const ss=$('cal-sel-start'),se=$('cal-sel-end'),hs=$('f-start'),he=$('f-end');
+  if(ss){ss.textContent=_cal.start?_cal.start.slice(5).replace('-','/'):'點選出發日';ss.classList.toggle('cal-active',!!_cal.start);}
+  if(se){se.textContent=_cal.end?_cal.end.slice(5).replace('-','/'):'點選回程日';se.classList.toggle('cal-active',!!_cal.end);}
+  if(hs)hs.value=_cal.start||''; if(he)he.value=_cal.end||'';
+  renderTripCal();
 }
 function saveTrip(id){
   const name=$('f-name').value.trim(); if(!name){toast('請輸入名稱');return;}
-  const obj={name,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase(),updatedBy:ME,updatedAt:Date.now()};
+  const type=_seg['trip-type-seg']||(document.querySelector('#trip-type-seg button.on')?.dataset.v)||'international';
+  const obj={name,type,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase(),updatedBy:ME,updatedAt:Date.now()};
   const isNew=!id;
-  if(isNew){ id=uid(); obj.createdAt=Date.now(); fbSet('trips/'+id,obj); autoCreateDays(id,obj.startDate,obj.endDate); ACTIVE=id; localStorage.setItem('tv_trip',id); }
+  if(isNew){ id=uid(); obj.createdAt=Date.now(); fbSet('trips/'+id,obj); autoCreateDays(id,obj.startDate,obj.endDate); ACTIVE=id; localStorage.setItem('tv_trip',id); syncMe(); }
   else fbUpdate('trips/'+id,obj);
-  closeModal(); toast('已儲存'); if(isNew) go('itin');
+  closeModal(); toast('已儲存');
+  if(isNew){ go('itin'); setTimeout(()=>{ if(!ME) showRolePicker(id); },400); }
 }
 function autoCreateDays(tripId,start,end){
   if(!start)return;
@@ -662,8 +809,10 @@ function renderItin(){
   let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">${fi('calendar',15)} 完整行程</div>
     <div style="display:flex;gap:6px"><button class="btn sm gray" onclick="addDay()">${fi('plus',12)} 天數</button><button class="btn sm" onclick="addItemPrompt()">${fi('plus',12)} 行程</button></div></div>`;
 
-  // 班機資訊（可收合）
+  // 班機資訊（國際旅遊才顯示）
+  const _tripType=(DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].type)||'international';
   const flights=Object.keys(DATA.flights&&DATA.flights[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.flights[ACTIVE][k])).sort((a,b)=>(a.depDate||'').localeCompare(b.depDate||''));
+  if(_tripType!=='domestic'){
   h+=`<div class="row-between" style="margin:14px 4px 6px;cursor:pointer" onclick="_flightsOpen=!_flightsOpen;renderItin()">
     <div style="font-weight:900;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:6px">✈️ 班機資訊 <span style="font-size:11px;color:var(--text-muted);font-weight:500">${flights.length}筆</span></div>
     <div style="display:flex;gap:6px;align-items:center">
@@ -684,6 +833,7 @@ function renderItin(){
       <button class="x-btn" onclick="event.stopPropagation();confirmDel('刪除此班機？',()=>fbRemove('flights/${ACTIVE}/${f._id}'))">${fi('trash-2',14)}</button>
     </div>`).join('')+`</div>`;
   }
+  } // end international-only flights
 
   if(!days.length) h+=`<div class="empty"><span class="big">🗓️</span>還沒有天數<br>點「＋ 天數」開始排行程</div>`;
   days.forEach((day,di)=>{
@@ -1042,14 +1192,17 @@ function renderTodosSection(){
       const dueToday=t.dueDate===today&&!t.done;
       h+=`<div class="todo-item">
         <div class="todo-cb ${t.done?'on':''}" onclick="toggleTodo('${t._id}',${!!t.done})"></div>
-        <div style="flex:1;min-width:0" onclick="editTodo('${t._id}')">
-          <div class="todo-title ${t.done?'done':''}">${esc(t.title)}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
-            ${t.dueDate?`<span class="due-badge ${over?'over':dueToday?'over':''}">${fi('clock',10)} ${fmtDateShort(t.dueDate)}${over?' 已逾期':dueToday?' 今天':''}</span>`:''}
-            ${t.by?`<span style="font-size:10px;color:var(--text-muted)">by ${esc(t.by)}</span>`:''}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="todo-title ${t.done?'done':''}">${esc(t.title)}</span>
+            ${t.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(t.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
           </div>
+          ${t.by?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">by ${esc(t.by)}</div>`:''}
         </div>
-        <button class="x-btn" onclick="event.stopPropagation();fbRemove('todos/${ACTIVE}/${t._id}')">${fi('x',14)}</button>
+        <div style="display:flex;gap:2px">
+          <button class="x-btn" onclick="event.stopPropagation();editTodo('${t._id}')">${fi('edit-2',14)}</button>
+          <button class="x-btn" onclick="event.stopPropagation();confirmDel('刪除此待辦？',()=>fbRemove('todos/${ACTIVE}/${t._id}'))">${fi('trash-2',14)}</button>
+        </div>
       </div>`;
     });
     h+=`</div>`;
@@ -1065,11 +1218,14 @@ function renderTodosSection(){
       const over=p.dueDate&&p.dueDate<today; const dueToday=p.dueDate===today;
       return `<div class="card" style="padding:12px">
         <div class="row-between">
-          <div>
-            <div style="font-size:15px;font-weight:900;letter-spacing:-0.2px;color:var(--primary-dark)">${esc(p.title)}</div>
-            ${p.dueDate?`<div style="margin-top:3px"><span class="due-badge ${over?'over':dueToday?'over':''}">${fi('clock',10)} 截止 ${p.dueDate.replace(/-/g,'/')}${over?' (已逾期)':dueToday?' (今天截止)':''}</span></div>`:''}
+          <div style="flex:1;min-width:0;margin-right:8px">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="font-size:15px;font-weight:900;letter-spacing:-0.2px;color:var(--primary-dark)">${esc(p.title)}</span>
+              ${p.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(p.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
+            </div>
+            ${(p.selType==='multi'||p.voteType==='anonymous')?`<div style="display:flex;gap:4px;margin-top:4px">${p.selType==='multi'?'<span style="font-size:10px;background:#e0e7ff;color:#3730a3;padding:2px 7px;border-radius:999px;font-weight:700">☑ 複選</span>':''}${p.voteType==='anonymous'?'<span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:2px 7px;border-radius:999px;font-weight:700">🕵️ 匿名</span>':''}</div>`:''}
           </div>
-          <div style="display:flex;gap:2px">
+          <div style="display:flex;gap:2px;flex-shrink:0">
             <button class="x-btn" onclick="event.stopPropagation();editPoll('${p._id}')">${fi('edit-2',14)}</button>
             <button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">${fi('trash-2',14)}</button>
           </div>
@@ -1087,7 +1243,7 @@ function renderTodosSection(){
               </div>
             </div>
             <div class="poll-bar-bg"><div class="poll-bar" style="width:${pct}%"></div></div>
-            ${cnt?`<div class="voters">${Object.keys(o.votes).join('、')}</div>`:''}</div>`;}).join('')}
+            ${cnt?(p.voteType==='anonymous'?`<div class="voters">${cnt}人已投票</div>`:`<div class="voters" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="showPollVoters('${p._id}','${o._id}')">${Object.keys(o.votes).join('、')}</div>`):''}</div>`;}).join('')}
         <button class="btn sm ghost full" style="margin-top:8px" onclick="addPollOpt('${p._id}')">${fi('plus',12)} 新增選項</button></div>`;
     }).join('');
   }
@@ -1137,7 +1293,7 @@ function renderMemosSection(){
               fmt==='bullets'?m.text.split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>'):
               fmt==='checklist'?renderChecklistItems(m):
               esc(m.text)}
-            ${m.dueDate?`<span class="due-badge ${m.dueDate<todayStr?'over':m.dueDate===todayStr?'over':''}" style="margin-left:6px">${fi('clock',9)} ${m.dueDate.replace(/-/g,'/')}</span>`:''}
+            ${m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:''}
           </div>
           <button class="x-btn" onclick="fbRemove('memos/${ACTIVE}/${m._id}')">${fi('x',14)}</button>
         </div>`;
@@ -1212,6 +1368,14 @@ function renderTools(){
     <div class="card" style="padding:12px">
     <button class="btn full ghost" onclick="exportPDF()">${fi('printer',14)} 匯出 / 列印行程（存成 PDF）</button>
     <p style="font-size:11px;color:var(--text-muted);margin:8px 2px 0;line-height:1.6">列印視窗選「另存為 PDF」即可下載完整行程。</p></div>`;
+  const _tripRoles=tripRoles(ACTIVE);
+  const _roleArr=Object.keys(_tripRoles).map(k=>({k,..._tripRoles[k]}));
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('users',13)} 旅程成員</div>
+    <div class="card" style="padding:12px">
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.7">管理成員名單，加入旅程時可從這裡選擇身分。</p>
+      ${_roleArr.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${_roleArr.map(r=>`<div style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:4px 12px 4px 10px"><span style="font-size:18px">${r.emoji||'😎'}</span><span style="font-size:13px;font-weight:700">${esc(r.name)}</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 0 0 6px;font-size:13px;line-height:1" onclick="confirmDel('移除「${esc(r.name).replace(/['"]/g,'')}」？',()=>fbRemove('trips/${ACTIVE}/roles/${r.k}'))">${fi('x',11)}</button></div>`).join('')}</div>`:'<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">尚無成員</p>'}
+      <div style="display:flex;gap:8px"><input class="tag-input" id="role-add-name" placeholder="輸入成員名字" style="flex:1"><button class="btn sm" onclick="addRoleWithPicker()">${fi('user-plus',13)} 新增</button></div>
+    </div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('database',13)} 資料備份與還原</div>
     <div class="card" style="padding:14px">
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.7">將所有旅程的完整資料（行程、收藏、待辦、備忘錄）匯出為 <b>.json</b> 備份檔。換設備、清除快取、或分享給同行者時可用來還原。</p>
@@ -1221,6 +1385,39 @@ function renderTools(){
       </div>
     </div>`;
   $('tools-wrap').innerHTML=h; doFx();
+}
+function toolsAddRole(){
+  const n=$('role-add-name')?.value.trim(); if(!n)return;
+  const e=PERSON_EMOJIS[Math.floor(Math.random()*PERSON_EMOJIS.length)];
+  fbUpdate('trips/'+ACTIVE,{['roles/'+uid()]:{name:n,emoji:e}});
+  if($('role-add-name'))$('role-add-name').value='';
+  toast('已新增：'+n);
+}
+let _newRoleEmoji=PERSON_EMOJIS[0];
+function addRoleWithPicker(){
+  _newRoleEmoji=PERSON_EMOJIS[0];
+  modal(`<div class="modal-title">${fi('user-plus',15)} 新增成員</div>
+    <label class="fld">暱稱</label>
+    <input class="tag-input" id="new-role-name" placeholder="輸入成員名字">
+    <label class="fld">頭像</label>
+    <div class="emoji-grid" id="new-role-emoji-grid">
+      ${PERSON_EMOJIS.map((e,i)=>`<button class="emoji-btn${i===0?' on':''}" onclick="newRoleEmojiPick('${e}')">${e}</button>`).join('')}
+    </div>
+    <div class="modal-acts" style="margin-top:12px">
+      <button class="btn gray" onclick="closeModal()">取消</button>
+      <button class="btn" style="flex:1" onclick="doAddRoleWithEmoji()">新增</button>
+    </div>`);
+  setTimeout(()=>{ const i=$('new-role-name'); if(i)i.focus(); },60);
+}
+function newRoleEmojiPick(e){
+  _newRoleEmoji=e;
+  document.querySelectorAll('#new-role-emoji-grid .emoji-btn').forEach(b=>b.classList.toggle('on',b.textContent.trim()===e));
+}
+function doAddRoleWithEmoji(){
+  const n=$('new-role-name')?.value.trim(); if(!n){toast('請輸入名字');return;}
+  const e=_newRoleEmoji||PERSON_EMOJIS[0];
+  fbUpdate('trips/'+ACTIVE,{['roles/'+uid()]:{name:n,emoji:e}});
+  closeModal(); toast('已新增：'+n);
 }
 
 /* 投票（仍保留函式供 memo 頁使用） */
@@ -1249,6 +1446,17 @@ function editPoll(id){
   const rows=existOpts.length>=2?existOpts:[{text:'',note:'',url:''},{text:'',note:'',url:''}];
   modal(`<div class="modal-title">${fi('bar-chart-2',15)} ${id?'編輯':'發起'}投票</div>
     <label class="fld">主題</label><input class="tag-input" id="pq-title" value="${esc(p.title||'')}" placeholder="例：住宿要選哪間？">
+    <label class="fld">投票設定</label>
+    <div style="display:flex;gap:8px">
+      <div class="seg" id="pq-vtype" style="flex:1">
+        <button data-v="named" class="${(p.voteType||'named')==='named'?'on':''}" onclick="segPick('pq-vtype','named')">👤 實名</button>
+        <button data-v="anonymous" class="${p.voteType==='anonymous'?'on':''}" onclick="segPick('pq-vtype','anonymous')">🕵️ 匿名</button>
+      </div>
+      <div class="seg" id="pq-stype" style="flex:1">
+        <button data-v="single" class="${(p.selType||'single')==='single'?'on':''}" onclick="segPick('pq-stype','single')">☝️ 單選</button>
+        <button data-v="multi" class="${p.selType==='multi'?'on':''}" onclick="segPick('pq-stype','multi')">☑️ 複選</button>
+      </div>
+    </div>
     <label class="fld">截止日期（選填）</label><input type="date" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}">
     <label class="fld">選項</label>
     <div id="pq-opts-list">${rows.map((o,i)=>renderPollOptRow(o.text||'',o.note||'',o.url||'',i)).join('')}</div>
@@ -1257,12 +1465,14 @@ function editPoll(id){
 }
 function savePoll(id){
   const title=$('pq-title').value.trim(); if(!title){toast('請輸入主題');return;}
+  const voteType=_seg['pq-vtype']||(document.querySelector('#pq-vtype button.on')?.dataset.v||'named');
+  const selType=_seg['pq-stype']||(document.querySelector('#pq-stype button.on')?.dataset.v||'single');
   const rows=document.querySelectorAll('#pq-opts-list .poll-opt-row');
   const options={};let valid=0;
   rows.forEach(row=>{const text=row.querySelector('.por-text').value.trim(); if(text){options[uid()]={text,note:row.querySelector('.por-note').value.trim(),url:row.querySelector('.por-url').value.trim(),votes:{}};valid++;}});
   if(valid<2){toast('至少兩個有效選項');return;}
-  if(id) fbUpdate('polls/'+ACTIVE+'/'+id,{title,dueDate:$('pq-due').value,options});
-  else fbSet('polls/'+ACTIVE+'/'+uid(),{title,by:ME,dueDate:$('pq-due').value,createdAt:Date.now(),options});
+  if(id) fbUpdate('polls/'+ACTIVE+'/'+id,{title,voteType,selType,dueDate:$('pq-due').value,options});
+  else fbSet('polls/'+ACTIVE+'/'+uid(),{title,voteType,selType,by:ME,dueDate:$('pq-due').value,createdAt:Date.now(),options});
   closeModal(); toast(id?'已更新':'已發起');
 }
 function editPollOpt(pollId,optId){
@@ -1283,9 +1493,31 @@ function savePollOpt(pollId,optId){
 function votePoll(pollId,optId){
   const poll=DATA.polls&&DATA.polls[ACTIVE]&&DATA.polls[ACTIVE][pollId]; if(!poll)return;
   const opts=poll.options||{}; const mk=safeKey(ME);
-  Object.keys(opts).forEach(k=>{ if(!opts[k].votes)opts[k].votes={}; if(k===optId){if(opts[k].votes[mk])delete opts[k].votes[mk];else opts[k].votes[mk]=true;}else{delete opts[k].votes[mk];} });
+  const isMulti=poll.selType==='multi';
+  if(isMulti){
+    if(!opts[optId])return;
+    if(!opts[optId].votes)opts[optId].votes={};
+    if(opts[optId].votes[mk])delete opts[optId].votes[mk]; else opts[optId].votes[mk]=true;
+  }else{
+    Object.keys(opts).forEach(k=>{ if(!opts[k].votes)opts[k].votes={}; if(k===optId){if(opts[k].votes[mk])delete opts[k].votes[mk];else opts[k].votes[mk]=true;}else{delete opts[k].votes[mk];} });
+  }
   saveData(); scheduleRender();
   if(db) ref('polls/'+ACTIVE+'/'+pollId+'/options').set(opts).catch(()=>{});
+}
+function showPollVoters(pollId,optId){
+  const p=DATA.polls&&DATA.polls[ACTIVE]&&DATA.polls[ACTIVE][pollId]; if(!p)return;
+  const o=p.options&&p.options[optId]; if(!o)return;
+  const voters=Object.keys(o.votes||{});
+  const r=tripRoles(ACTIVE);
+  modal(`<div class="modal-title">${fi('users',15)} 「${esc(o.text)}」的投票者</div>
+    ${voters.length?voters.map(v=>{
+      const found=Object.values(r).find(rr=>safeKey(rr.name)===v);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">
+        <span style="font-size:20px">${found?found.emoji:'😎'}</span>
+        <span style="font-size:14px;font-weight:700">${esc(found?found.name:v)}</span>
+      </div>`;
+    }).join(''):`<div style="color:var(--text-muted);font-size:13px;padding:14px 0;text-align:center">尚無人投票</div>`}
+  `);
 }
 function addPollOpt(pollId){
   const t=prompt('新增選項'); if(!t||!t.trim())return;
