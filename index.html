@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="旅遊行程">
+  <meta name="theme-color" content="#5b52e8">
+  <link rel="manifest" href="manifest.json">
+  <title>旅遊行程規劃</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+  :root{
+    --primary:#5b52e8;--primary-light:#ede9fe;--primary-dark:#4338ca;
+    --accent:#7c3aed;--accent2:#ec4899;
+    --success:#10b981;--warning:#d97706;--danger:#dc2626;--danger-light:#fee2e2;
+    --surface:#fff;--bg:#f4f6fb;
+    --border:#e8edf5;--border-light:#f1f5f9;
+    --text-primary:#1e293b;--text-secondary:#475569;--text-muted:#94a3b8;
+    --shadow-sm:0 1px 4px rgba(0,0,0,.07);--shadow-md:0 4px 16px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.14);
+    --radius-sm:8px;--radius-md:14px;--radius-lg:20px;
+  }
+  *{font-family:'Noto Sans TC',sans-serif;-webkit-tap-highlight-color:transparent;box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 78px);min-height:100vh;color:var(--text-primary);font-size:14px}
+  .page{display:none;max-width:680px;margin:0 auto}
+  .page.active{display:block;animation:fade .25s}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .hidden{display:none!important}
+  button{font-family:'Noto Sans TC',sans-serif;cursor:pointer}
+  input,select,textarea{font-family:'Noto Sans TC',sans-serif;font-size:14px}
+
+  /* ── HEADER ── */
+  .topbar{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
+  .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:680px;margin:0 auto}
+  .topbar-title{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;min-width:0}
+  .topbar-title .tt-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar-sub{font-size:11px;opacity:.85;margin-top:2px;font-weight:500}
+  .me-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .me-btn .me-dot{width:8px;height:8px;border-radius:50%;background:#a7f3d0}
+
+  /* ── NAV ── */
+  .nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 4px calc(env(safe-area-inset-bottom,0px) + 8px);z-index:80;box-shadow:0 -2px 16px rgba(0,0,0,.05)}
+  .nav-item{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;color:#b0bbc8;transition:.15s}
+  .nav-item.active{color:var(--primary)}
+  .nav-item .ico{font-size:21px;line-height:1}
+  .nav-item .lab{font-size:10px;font-weight:700}
+
+  /* ── GENERIC ── */
+  .wrap{padding:14px 14px 20px}
+  .sec-title{font-size:13px;font-weight:900;color:var(--text-secondary);margin:18px 4px 8px;display:flex;align-items:center;gap:6px}
+  .card{background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border-light);box-shadow:var(--shadow-sm);margin-bottom:10px;overflow:hidden}
+  .btn{border:none;border-radius:var(--radius-sm);padding:11px 16px;font-size:14px;font-weight:700;background:var(--primary);color:#fff;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .btn:active{transform:scale(.96)}
+  .btn.full{width:100%}
+  .btn.ghost{background:var(--primary-light);color:var(--primary-dark)}
+  .btn.gray{background:var(--border-light);color:var(--text-secondary)}
+  .btn.sm{padding:7px 12px;font-size:12px;border-radius:8px}
+  .btn.danger{background:var(--danger-light);color:var(--danger)}
+  .empty{text-align:center;color:var(--text-muted);padding:40px 20px;font-size:13px;font-weight:500}
+  .empty .big{font-size:40px;display:block;margin-bottom:10px}
+  .chip{padding:4px 11px;border-radius:999px;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:var(--surface);color:#64748b;white-space:nowrap;transition:.15s}
+  .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .tag-input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text-primary);outline:none;transition:.15s}
+  .tag-input:focus{border-color:var(--primary);background:#fff}
+  label.fld{display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin:10px 2px 5px}
+  textarea.tag-input{resize:vertical;min-height:60px}
+
+  /* type colors */
+  .t-spot{background:#eef2ff;color:#4338ca}
+  .t-food{background:#fff1f2;color:#be123c}
+  .t-hotel{background:#ecfeff;color:#0e7490}
+  .t-move{background:#f0fdf4;color:#15803d}
+  .t-other{background:#f5f3ff;color:#6d28d9}
+
+  /* ── TRIP CARD ── */
+  .trip-card{cursor:pointer;position:relative}
+  .trip-cover{height:96px;background:linear-gradient(135deg,var(--primary),var(--accent2));display:flex;align-items:flex-end;padding:12px;color:#fff}
+  .trip-cover .tc-name{font-size:18px;font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .trip-meta{padding:10px 13px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);font-weight:600}
+  .trip-card.active-trip{border:2px solid var(--primary)}
+
+  /* ── ITINERARY ── */
+  .day-head{display:flex;align-items:center;justify-content:space-between;background:var(--primary-light);border-radius:var(--radius-sm);padding:9px 13px;margin:14px 0 8px;cursor:pointer}
+  .day-head .dh-l{display:flex;align-items:center;gap:9px}
+  .day-badge{background:var(--primary);color:#fff;font-weight:900;font-size:13px;padding:3px 10px;border-radius:8px}
+  .day-date{font-size:11px;color:var(--text-secondary);font-weight:700}
+  .item{display:flex;gap:9px;padding:11px 12px;position:relative}
+  .item-handle{flex-shrink:0;width:22px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:17px;cursor:grab;touch-action:none}
+  .item-body{flex:1;min-width:0}
+  .item-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .item-name{font-size:14px;font-weight:700;color:var(--text-primary)}
+  .item-time{font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 8px;border-radius:6px}
+  .item-note{font-size:12px;color:var(--text-secondary);margin-top:5px;white-space:pre-wrap;line-height:1.5}
+  .item-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .mini-link{font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:7px;background:var(--primary-light)}
+  .transit{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 40px;color:var(--text-muted);font-size:11px;font-weight:700}
+  .transit .tline{flex:1;border-top:1.5px dashed var(--border)}
+  .item.dragging{opacity:.5}
+  .item.dragover{box-shadow:inset 0 2px 0 var(--primary)}
+  .map-embed{width:100%;height:200px;border:none;border-radius:var(--radius-sm);margin-top:6px}
+
+  /* ── place library ── */
+  .place-row{display:flex;gap:10px;align-items:flex-start;padding:11px 12px}
+  .place-thumb{width:42px;height:42px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+
+  /* ── memo ── */
+  .memo-item{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid var(--border-light)}
+  .memo-item:last-child{border-bottom:none}
+  .cb{width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;margin-top:1px;background:#fff}
+  .cb.on{background:var(--success);border-color:var(--success)}
+  .cb.on::after{content:'';width:4px;height:8px;border:2px solid #fff;border-top:none;border-left:none;transform:rotate(40deg) translateY(-1px)}
+  .memo-txt{flex:1;font-size:14px;line-height:1.5;word-break:break-word}
+  .memo-txt.done{text-decoration:line-through;color:var(--text-muted)}
+
+  /* ── poll ── */
+  .poll-opt{padding:10px 12px;border-bottom:1px solid var(--border-light)}
+  .poll-bar-bg{height:8px;background:var(--border-light);border-radius:999px;overflow:hidden;margin-top:6px}
+  .poll-bar{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent2));border-radius:999px;transition:width .4s}
+  .voters{font-size:10px;color:var(--text-muted);margin-top:4px}
+
+  /* ── weather / fx ── */
+  .wx-day{min-width:64px;text-align:center;background:var(--bg);border-radius:12px;padding:10px 6px;flex-shrink:0}
+  .wx-emoji{font-size:24px}
+  .wx-scroll{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px}
+
+  /* ── modal ── */
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;width:100%;max-width:680px;border-radius:22px 22px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,0px) + 18px);max-height:90vh;overflow-y:auto;animation:slideup .25s}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .modal-grip{width:40px;height:4px;background:var(--border);border-radius:999px;margin:0 auto 14px}
+  .modal-title{font-size:17px;font-weight:900;margin-bottom:4px}
+  .modal-acts{display:flex;gap:8px;margin-top:18px}
+  .seg{display:flex;gap:5px;background:var(--border-light);border-radius:10px;padding:4px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:60px;padding:8px 4px;border-radius:7px;border:none;background:none;font-size:12px;font-weight:700;color:var(--text-muted)}
+  .seg button.on{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
+
+  /* ── lock / role ── */
+  .lock{position:fixed;inset:0;background:linear-gradient(160deg,var(--primary),var(--accent));z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
+  .lock h1{font-size:26px;margin:0 0 6px;font-weight:900}
+  .lock p{opacity:.9;font-size:13px;margin:0 0 26px}
+  .role-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;max-width:340px}
+  .role-btn{background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.3);color:#fff;padding:16px 10px;border-radius:16px;font-size:15px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .role-btn .rb-emoji{font-size:26px}
+  .role-add{background:rgba(255,255,255,.08);border:1.5px dashed rgba(255,255,255,.5)}
+
+  /* toast */
+  .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--text-primary);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;z-index:900;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;bottom:104px}
+  .fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;border:none;font-size:26px;box-shadow:var(--shadow-lg);z-index:70;display:flex;align-items:center;justify-content:center}
+  .fab:active{transform:scale(.92)}
+  .row-between{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .x-btn{background:none;border:none;font-size:20px;color:var(--text-muted);padding:4px}
+  .dot-menu-btn{background:none;border:none;color:var(--text-muted);font-size:18px;padding:2px 6px;font-weight:900}
+
+  /* print */
+  #print-area{display:none}
+  @media print{
+    body *{visibility:hidden}
+    #print-area,#print-area *{visibility:visible}
+    #print-area{display:block;position:absolute;left:0;top:0;width:100%;padding:20px}
+    .nav,.topbar,.fab{display:none!important}
+  }
+  </style>
+</head>
+<body>
+
+  <!-- 角色選擇 / 鎖定畫面 -->
+  <div class="lock" id="lock">
+    <div style="font-size:54px;margin-bottom:10px">🧳</div>
+    <h1>一起去旅行</h1>
+    <p>選擇你是誰，開始共同規劃行程</p>
+    <div class="role-grid" id="role-grid"></div>
+  </div>
+
+  <!-- 頂部 -->
+  <div class="topbar" id="topbar">
+    <div class="topbar-row">
+      <div class="topbar-title" style="flex-direction:column;align-items:flex-start;gap:0">
+        <span class="tt-name" id="tb-title">旅遊行程</span>
+        <span class="topbar-sub" id="tb-sub"></span>
+      </div>
+      <button class="me-btn" id="me-btn" onclick="openMe()"><span class="me-dot"></span><span id="me-name">我</span></button>
+    </div>
+  </div>
+
+  <!-- 頁面 -->
+  <div id="page-trips" class="page active"><div class="wrap" id="trips-wrap"></div></div>
+  <div id="page-itin" class="page"><div class="wrap" id="itin-wrap"></div></div>
+  <div id="page-places" class="page"><div class="wrap" id="places-wrap"></div></div>
+  <div id="page-memo" class="page"><div class="wrap" id="memo-wrap"></div></div>
+  <div id="page-tools" class="page"><div class="wrap" id="tools-wrap"></div></div>
+
+  <button class="fab hidden" id="fab" onclick="fabAction()">＋</button>
+
+  <!-- 底部導覽 -->
+  <div class="nav" id="nav">
+    <button class="nav-item active" data-page="trips" onclick="go('trips')"><span class="ico">🗺️</span><span class="lab">旅程</span></button>
+    <button class="nav-item" data-page="itin" onclick="go('itin')"><span class="ico">📅</span><span class="lab">行程</span></button>
+    <button class="nav-item" data-page="places" onclick="go('places')"><span class="ico">⭐</span><span class="lab">收藏</span></button>
+    <button class="nav-item" data-page="memo" onclick="go('memo')"><span class="ico">📝</span><span class="lab">備忘</span></button>
+    <button class="nav-item" data-page="tools" onclick="go('tools')"><span class="ico">🧰</span><span class="lab">工具</span></button>
+  </div>
+
+  <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+  <div class="toast" id="toast"></div>
+  <div id="print-area"></div>
+
+<script>
+/* ════════════════ Firebase & 資料層 ════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBN8V3wZOp9vaJFkIN9rDWTNELK9UHOB8I",
+  authDomain: "my-housework-73a32.firebaseapp.com",
+  databaseURL: "https://my-housework-73a32-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "my-housework-73a32",
+  storageBucket: "my-housework-73a32.firebasestorage.app",
+  messagingSenderId: "792978110342",
+  appId: "1:792978110342:web:8dde74d7ca02af00561e07"
+};
+let db=null;
+try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.error('FB init',e); }
+const ROOT='rooms/travelapp_v1';       // 用 rooms 命名空間以符合資料庫安全規則；與家務 app 的 token 不同，互不影響
+let DATA={};                            // 完整資料快照
+let ME=localStorage.getItem('tv_me')||''; // 目前角色
+let ACTIVE=localStorage.getItem('tv_trip')||''; // 目前旅程
+let CURPAGE=localStorage.getItem('tv_page')||'trips';
+const DEFAULT_ROLES=[['我','😎'],['夥伴','🧑‍🤝‍🧑'],['家人','👨‍👩‍👧'],['朋友','🐱']];
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const ref=(p)=>db.ref(ROOT+(p?'/'+p:''));
+const esc=(s)=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=(id)=>document.getElementById(id);
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1800); }
+
+function startSync(){
+  renderAll();                          // 先用現有資料立即渲染，不卡在等雲端
+  if(!db){ toast('離線模式（無法同步）'); return; }
+  ref().on('value',
+    snap=>{ DATA=snap.val()||{}; renderAll(); },
+    err=>{ console.error('雲端讀取失敗',err); toast('雲端連線失敗，仍可離線使用'); }
+  );
+}
+function fbSet(path,val){ if(db) ref(path).set(val); }
+function fbUpdate(path,obj){ if(db) ref(path).update(obj); }
+function fbRemove(path){ if(db) ref(path).remove(); }
+
+/* ════════════════ 角色 / 登入 ════════════════ */
+function roleList(){
+  const r=DATA.roles||{};
+  let arr=Object.keys(r).map(k=>[r[k].name,r[k].emoji||'🙂',k]);
+  if(arr.length===0) arr=DEFAULT_ROLES.map(x=>[x[0],x[1],null]);
+  return arr;
+}
+function renderRoles(){
+  const arr=roleList();
+  $('role-grid').innerHTML=arr.map(([n,e])=>
+    `<button class="role-btn" onclick="pickRole('${esc(n).replace(/'/g,"\\'")}')"><span class="rb-emoji">${e}</span>${esc(n)}</button>`
+  ).join('')+`<button class="role-btn role-add" onclick="addRole()"><span class="rb-emoji">＋</span>新增成員</button>`;
+}
+function ensureDefaultRoles(){
+  if(!DATA.roles||Object.keys(DATA.roles).length===0){
+    const o={}; DEFAULT_ROLES.forEach(([n,e])=>{const k=uid();o[k]={name:n,emoji:e};}); fbSet('roles',o);
+  }
+}
+function addRole(){
+  const n=prompt('成員名稱？'); if(!n||!n.trim())return;
+  const emojis=['🐰','🐻','🦊','🐼','🐧','🦄','🐯','🐨','🌟','🍡']; const e=emojis[Math.floor(Math.random()*emojis.length)];
+  const k=uid(); fbSet('roles/'+k,{name:n.trim(),emoji:e});
+  setTimeout(()=>pickRole(n.trim()),300);
+}
+function pickRole(name){ ME=name; localStorage.setItem('tv_me',name); $('lock').style.display='none'; renderAll(); }
+function openMe(){
+  const arr=roleList();
+  modal(`<div class="modal-title">切換成員</div><p style="color:var(--text-muted);font-size:12px;margin:2px 0 14px">目前：${esc(ME)}</p>
+  <div class="role-grid" style="grid-template-columns:repeat(2,1fr)">${arr.map(([n,e])=>`<button class="role-btn" style="background:var(--bg);border-color:var(--border);color:var(--text-primary)" onclick="pickRole('${esc(n).replace(/'/g,"\\'")}');closeModal()"><span class="rb-emoji">${e}</span>${esc(n)}</button>`).join('')}
+  <button class="role-btn role-add" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary-dark)" onclick="closeModal();addRole()"><span class="rb-emoji">＋</span>新增</button></div>`);
+}
+
+/* ════════════════ 導覽 / Modal ════════════════ */
+function go(p){
+  CURPAGE=p;
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  $('page-'+p).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
+  localStorage.setItem('tv_page',p);
+  window.scrollTo(0,0); renderAll();
+}
+function modal(html){ $('modal').innerHTML=`<div class="modal-grip"></div>`+html; $('modal-bg').classList.add('show'); }
+function closeModal(){ $('modal-bg').classList.remove('show'); _seg={}; }
+const safeKey=(s)=>String(s).replace(/[.#$\[\]\/]/g,'_');
+
+function updateFab(){
+  const f=$('fab');
+  const show=(CURPAGE==='trips')||(CURPAGE==='itin'&&ACTIVE)||(CURPAGE==='places'&&ACTIVE)||(CURPAGE==='memo'&&ACTIVE);
+  f.classList.toggle('hidden',!show);
+}
+function fabAction(){
+  if(CURPAGE==='trips') editTrip();
+  else if(CURPAGE==='itin') addItemPrompt();
+  else if(CURPAGE==='places') editPlace();
+  else if(CURPAGE==='memo') addMemoPrompt();
+}
+
+/* ════════════════ 總渲染分派 ════════════════ */
+function renderAll(){
+  ensureDefaultRoles();
+  if(!ME){ renderRoles(); $('lock').style.display='flex'; return; }
+  $('lock').style.display='none';
+  $('me-name').textContent=ME;
+  const trip=DATA.trips&&DATA.trips[ACTIVE];
+  $('tb-title').textContent= trip? trip.name : '旅遊行程';
+  $('tb-sub').textContent= trip? ((trip.dest||'') + (trip.startDate? '　'+trip.startDate.slice(5)+(trip.endDate?'~'+trip.endDate.slice(5):''):'')) : '一起規劃完美旅程';
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  $('page-'+CURPAGE).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===CURPAGE));
+  if(CURPAGE==='trips') renderTrips();
+  else if(CURPAGE==='itin') renderItin();
+  else if(CURPAGE==='places') renderPlaces();
+  else if(CURPAGE==='memo') renderMemo();
+  else if(CURPAGE==='tools') renderTools();
+  updateFab();
+}
+
+/* ════════════════ 共用工具 ════════════════ */
+const TYPES={spot:['景點','📍','t-spot'],food:['餐廳','🍜','t-food'],hotel:['住宿','🏨','t-hotel'],move:['交通','🚆','t-move'],other:['其他','📌','t-other']};
+const MODES={walk:['步行','🚶'],transit:['大眾運輸','🚆'],drive:['開車','🚗'],bike:['單車','🚲'],taxi:['計程車','🚕']};
+function mapsSearchUrl(q){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q); }
+function mapsEmbedUrl(q){ return 'https://maps.google.com/maps?q='+encodeURIComponent(q)+'&z=15&output=embed'; }
+function mapsDirUrl(from,to,mode){ const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit'; return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(from)+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function sortedBy(obj,key){ if(!obj)return []; return Object.keys(obj).map(k=>Object.assign({_id:k},obj[k])).sort((a,b)=>(a[key]||0)-(b[key]||0)); }
+function confirmDel(msg,fn){ if(confirm(msg)) fn(); }
+
+/* ════════════════ 旅程頁 ════════════════ */
+function renderTrips(){
+  const trips=DATA.trips||{};
+  const arr=Object.keys(trips).map(k=>Object.assign({_id:k},trips[k])).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">🗺️ 我的旅程</div><button class="btn sm" onclick="editTrip()">＋ 新增</button></div>`;
+  if(arr.length===0){ h+=`<div class="empty"><span class="big">✈️</span>還沒有旅程<br>點右下角 ＋ 建立第一趟旅程！</div>`; }
+  else h+=arr.map(t=>{
+    const days=DATA.days&&DATA.days[t._id]?Object.keys(DATA.days[t._id]).length:0;
+    const act=t._id===ACTIVE?'active-trip':'';
+    return `<div class="card trip-card ${act}" onclick="selectTrip('${t._id}')">
+      <div class="trip-cover" style="${t.color?'background:'+t.color:''}">
+        <div style="flex:1"><div class="tc-name">${esc(t.name)}</div></div>
+        <button class="dot-menu-btn" style="color:#fff" onclick="event.stopPropagation();tripMenu('${t._id}')">⋯</button>
+      </div>
+      <div class="trip-meta">
+        <span>📍 ${esc(t.dest||'未設定地點')}</span>
+        <span>${t.startDate?esc(t.startDate.slice(5)+(t.endDate?' ~ '+t.endDate.slice(5):'')):''} · ${days}天</span>
+      </div>
+    </div>`;
+  }).join('');
+  $('trips-wrap').innerHTML=h;
+}
+function selectTrip(id){ ACTIVE=id; localStorage.setItem('tv_trip',id); go('itin'); }
+function tripMenu(id){
+  const t=DATA.trips[id];
+  modal(`<div class="modal-title">${esc(t.name)}</div>
+    <button class="btn full ghost" style="margin-top:14px" onclick="closeModal();selectTrip('${id}')">📅 查看行程</button>
+    <button class="btn full gray" style="margin-top:8px" onclick="closeModal();editTrip('${id}')">✏️ 編輯資訊</button>
+    <button class="btn full gray" style="margin-top:8px" onclick="closeModal();shareTrip('${id}')">🔗 分享 / 共編說明</button>
+    <button class="btn full danger" style="margin-top:8px" onclick="confirmDel('刪除「${esc(t.name).replace(/'/g,'')}」？所有行程資料會一起刪除',()=>{delTrip('${id}');closeModal()})">🗑️ 刪除旅程</button>`);
+}
+function delTrip(id){ ['trips/'+id,'days/'+id,'items/'+id,'places/'+id,'memos/'+id,'polls/'+id].forEach(p=>fbRemove(p)); if(ACTIVE===id){ACTIVE='';localStorage.removeItem('tv_trip');} }
+function shareTrip(){
+  modal(`<div class="modal-title">🔗 多人共編</div>
+  <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;margin-top:10px">這個 app 的資料即時同步在雲端。只要把<b>這個網頁的網址</b>傳給旅伴，他們打開後選自己的角色，就能一起編輯同一份行程，所有修改即時同步。</p>
+  <button class="btn full" style="margin-top:16px" onclick="(navigator.share?navigator.share({title:'旅遊行程',url:location.href}):copyText(location.href));">分享連結</button>
+  <button class="btn full gray" style="margin-top:8px" onclick="copyText(location.href)">複製網址</button>`);
+}
+function copyText(t){ navigator.clipboard?navigator.clipboard.writeText(t).then(()=>toast('已複製')):toast(t); }
+
+function editTrip(id){
+  const t=(id&&DATA.trips&&DATA.trips[id])||{};
+  modal(`<div class="modal-title">${id?'編輯旅程':'新增旅程'}</div>
+    <label class="fld">旅程名稱</label><input class="tag-input" id="f-name" placeholder="例：東京賞櫻 2026" value="${esc(t.name||'')}">
+    <label class="fld">目的地</label><input class="tag-input" id="f-dest" placeholder="例：東京、首爾" value="${esc(t.dest||'')}">
+    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">出發日</label><input type="date" class="tag-input" id="f-start" value="${esc(t.startDate||'')}"></div>
+    <div style="flex:1"><label class="fld">回程日</label><input type="date" class="tag-input" id="f-end" value="${esc(t.endDate||'')}"></div></div>
+    <label class="fld">當地幣別（匯率/花費用，例：JPY、KRW、USD）</label><input class="tag-input" id="f-cur" placeholder="JPY" value="${esc(t.currency||'')}">
+    <div class="modal-acts"><button class="btn gray" style="flex:1" onclick="closeModal()">取消</button><button class="btn" style="flex:2" onclick="saveTrip('${id||''}')">儲存</button></div>`);
+}
+function saveTrip(id){
+  const name=$('f-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  const obj={name,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase()};
+  const isNew=!id;
+  if(isNew){ id=uid(); obj.createdAt=Date.now(); fbSet('trips/'+id,obj); autoCreateDays(id,obj.startDate,obj.endDate); ACTIVE=id; localStorage.setItem('tv_trip',id); }
+  else fbUpdate('trips/'+id,obj);
+  closeModal(); toast('已儲存'); if(isNew)go('itin');
+}
+function autoCreateDays(tripId,start,end){
+  if(!start)return;
+  const days={}; let d=new Date(start), e=end?new Date(end):new Date(start); let i=0;
+  while(d<=e && i<60){ const k=uid(); days[k]={label:'第'+(i+1)+'天',date:d.toISOString().slice(0,10),order:i}; d.setDate(d.getDate()+1); i++; }
+  if(Object.keys(days).length) fbSet('days/'+tripId,days);
+}
+
+/* ════════════════ 行程頁（分天 + 拖拉） ════════════════ */
+let _openDays={};   // 收合狀態
+function renderItin(){
+  if(!ACTIVE){ $('itin-wrap').innerHTML=`<div class="empty"><span class="big">📅</span>請先到「旅程」選一趟旅程</div>`; return; }
+  const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">📅 完整行程</div>
+    <div style="display:flex;gap:6px"><button class="btn sm gray" onclick="addDay()">＋ 天數</button><button class="btn sm" onclick="addItemPrompt()">＋ 行程</button></div></div>`;
+  if(days.length===0){ h+=`<div class="empty"><span class="big">🗓️</span>還沒有天數<br>點「＋ 天數」開始排行程</div>`; }
+  days.forEach((day,di)=>{
+    const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][day._id],'order');
+    const open=_openDays[day._id]!==false;
+    h+=`<div class="day-head" onclick="toggleDay('${day._id}')">
+      <div class="dh-l"><span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
+      <span class="day-date">${day.date?esc(fmtDate(day.date)):'未設定日期'}</span></div>
+      <div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--text-muted);font-weight:700">${items.length}項</span>
+      <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">⋯</button>
+      <span style="color:var(--text-muted);font-size:13px">${open?'▾':'▸'}</span></div></div>`;
+    if(open){
+      h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
+      if(items.length===0) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排，點下方加入</div>`;
+      items.forEach((it,ii)=>{
+        const ty=TYPES[it.type]||TYPES.other;
+        h+=`<div class="item" data-day="${day._id}" data-id="${it._id}">
+          <div class="item-handle" onpointerdown="dragStart(event,'${day._id}','${it._id}')">⠿</div>
+          <div class="item-body" onclick="itemMenu('${day._id}','${it._id}')">
+            <div class="item-top">
+              <span class="pill ${ty[2]}">${ty[1]} ${ty[0]}</span>
+              ${it.time?`<span class="item-time">🕐 ${esc(it.time)}</span>`:''}
+              <span class="item-name">${esc(it.name)}</span>
+            </div>
+            ${it.note?`<div class="item-note">${esc(it.note)}</div>`:''}
+            <div class="item-acts" onclick="event.stopPropagation()">
+              ${it.mapUrl||it.name?`<a class="mini-link" href="${esc(it.mapUrl||mapsSearchUrl(it.name))}" target="_blank">🗺️ 地圖</a>`:''}
+              ${it.mapUrl||it.name?`<a class="mini-link" href="#" onclick="showMap('${day._id}','${it._id}');return false;">👁️ 預覽</a>`:''}
+              <a class="mini-link" href="#" onclick="itemMenu('${day._id}','${it._id}');return false;">✏️ 編輯</a>
+            </div>
+            <div id="map-${it._id}"></div>
+          </div></div>`;
+        // 交通段（到下一項）
+        if(ii<items.length-1){
+          const nx=items[ii+1]; const md=MODES[it.transitMode]||MODES.transit;
+          h+=`<div class="transit"><span>${md[1]}</span>${it.transitMin?`<span>${esc(it.transitMin)} 分</span>`:''}
+            <span class="tline"></span>
+            <a class="mini-link" style="background:none;padding:2px" href="${mapsDirUrl(it.mapUrl||it.name,nx.mapUrl||nx.name,it.transitMode)}" target="_blank">查路線</a></div>`;
+        }
+      });
+      h+=`</div><div style="padding:8px 12px"><button class="btn sm ghost full" onclick="addItemPrompt('${day._id}')">＋ 加入這天</button></div></div>`;
+    }
+  });
+  $('itin-wrap').innerHTML=h;
+}
+function fmtDate(d){ const dt=new Date(d+'T00:00'); const w=['日','一','二','三','四','五','六'][dt.getDay()]; return (d.slice(5))+' (週'+w+')'; }
+function toggleDay(id){ _openDays[id]=_openDays[id]===false?true:false; renderItin(); }
+function showMap(dayId,itId){
+  const it=DATA.items[ACTIVE][dayId][itId]; const box=$('map-'+itId);
+  if(box.innerHTML){ box.innerHTML=''; return; }
+  box.innerHTML=`<iframe class="map-embed" loading="lazy" src="${mapsEmbedUrl(it.name+' '+(DATA.trips[ACTIVE].dest||''))}"></iframe>`;
+}
+
+function addDay(){
+  const days=DATA.days&&DATA.days[ACTIVE]?DATA.days[ACTIVE]:{};
+  const n=Object.keys(days).length; const k=uid();
+  fbSet('days/'+ACTIVE+'/'+k,{label:'第'+(n+1)+'天',date:'',order:n});
+}
+function dayMenu(id){
+  const d=DATA.days[ACTIVE][id];
+  modal(`<div class="modal-title">${esc(d.label||'這天')}</div>
+    <label class="fld">名稱</label><input class="tag-input" id="d-label" value="${esc(d.label||'')}">
+    <label class="fld">日期</label><input type="date" class="tag-input" id="d-date" value="${esc(d.date||'')}">
+    <div class="modal-acts"><button class="btn danger" onclick="confirmDel('刪除這天及其行程？',()=>{fbRemove('days/${ACTIVE}/${id}');fbRemove('items/${ACTIVE}/${id}');closeModal()})">刪除</button>
+    <button class="btn" style="flex:1" onclick="fbUpdate('days/${ACTIVE}/${id}',{label:$('d-label').value.trim(),date:$('d-date').value});closeModal();toast('已更新')">儲存</button></div>`);
+}
+
+/* ── 新增/編輯行程項目 ── */
+function addItemPrompt(dayId){
+  const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  if(days.length===0){
+    addDay();
+    setTimeout(()=>{ const d=DATA.days&&DATA.days[ACTIVE]; if(d&&Object.keys(d).length) editItem(Object.keys(d)[0]); else toast('已新增第1天，再點一次加入行程'); },400);
+    return;
+  }
+  if(!dayId) dayId=days[0]._id;
+  editItem(dayId);
+}
+function editItem(dayId,itId){
+  const it=(itId&&DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId]&&DATA.items[ACTIVE][dayId][itId])||{};
+  const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  const dayOpts=days.map((d,i)=>`<option value="${d._id}" ${d._id===dayId?'selected':''}>${esc(d.label||('第'+(i+1)+'天'))}</option>`).join('');
+  modal(`<div class="modal-title">${itId?'編輯行程':'新增行程'}</div>
+    <label class="fld">類型</label>
+    <div class="seg" id="it-type">${Object.keys(TYPES).map(k=>`<button data-v="${k}" class="${(it.type||'spot')===k?'on':''}" onclick="segPick('it-type','${k}')">${TYPES[k][1]}${TYPES[k][0]}</button>`).join('')}</div>
+    <label class="fld">名稱</label><input class="tag-input" id="it-name" placeholder="例：淺草寺" value="${esc(it.name||'')}">
+    <label class="fld">日期（在哪一天）</label><select class="tag-input" id="it-day">${dayOpts}</select>
+    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">時間</label><input type="time" class="tag-input" id="it-time" value="${esc(it.time||'')}"></div>
+    <div style="flex:1"><label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}"></div></div>
+    <label class="fld">備註（營業時間、避雷 tips、訂位等）</label><textarea class="tag-input" id="it-note" placeholder="例：09:00-17:00，週一休；門票需先預約">${esc(it.note||'')}</textarea>
+    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">到下一站交通方式</label>
+      <select class="tag-input" id="it-mode">${Object.keys(MODES).map(k=>`<option value="${k}" ${(it.transitMode||'transit')===k?'selected':''}>${MODES[k][1]} ${MODES[k][0]}</option>`).join('')}</select></div>
+    <div style="flex:1"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="例：20" value="${esc(it.transitMin||'')}"></div></div>
+    <div class="modal-acts">${itId?`<button class="btn danger" onclick="confirmDel('刪除此項目？',()=>{fbRemove('items/${ACTIVE}/${dayId}/${itId}');closeModal()})">刪除</button>`:''}
+    <button class="btn" style="flex:1" onclick="saveItem('${dayId}','${itId||''}')">儲存</button></div>`);
+}
+let _seg={};
+function segPick(group,v){ _seg[group]=v; document.querySelectorAll('#'+group+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
+function saveItem(dayId,itId){
+  const name=$('it-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  const targetDay=$('it-day').value;
+  const type=_seg['it-type']|| (document.querySelector('#it-type button.on')?document.querySelector('#it-type button.on').dataset.v:'spot');
+  const obj={type,name,time:$('it-time').value,mapUrl:$('it-map').value.trim(),note:$('it-note').value.trim(),transitMode:$('it-mode').value,transitMin:$('it-tmin').value};
+  if(!itId){
+    const cur=DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][targetDay]?Object.keys(DATA.items[ACTIVE][targetDay]).length:0;
+    obj.order=cur; itId=uid(); fbSet('items/'+ACTIVE+'/'+targetDay+'/'+itId,obj);
+  } else {
+    if(targetDay!==dayId){ // 換天：搬移
+      const old=DATA.items[ACTIVE][dayId][itId]; obj.order=old.order||0;
+      fbRemove('items/'+ACTIVE+'/'+dayId+'/'+itId);
+      fbSet('items/'+ACTIVE+'/'+targetDay+'/'+itId,obj);
+    } else { obj.order=DATA.items[ACTIVE][dayId][itId].order||0; fbUpdate('items/'+ACTIVE+'/'+dayId+'/'+itId,obj); }
+  }
+  _seg={}; closeModal(); toast('已儲存');
+}
+function itemMenu(dayId,itId){ editItem(dayId,itId); }
+
+/* ── 拖拉排序（pointer） ── */
+let _drag=null;
+function dragStart(e,dayId,itId){
+  e.preventDefault();
+  const el=e.target.closest('.item'); const container=el.parentNode;
+  _drag={el,container,dayId,itId};
+  el.classList.add('dragging'); el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+  document.addEventListener('pointermove',dragMove);
+  document.addEventListener('pointerup',dragEnd,{once:true});
+}
+function dragMove(e){
+  if(!_drag)return;
+  const after=getDragAfter(_drag.container,e.clientY);
+  if(after==null) _drag.container.appendChild(_drag.el);
+  else _drag.container.insertBefore(_drag.el,after);
+}
+function getDragAfter(container,y){
+  const els=[...container.querySelectorAll('.item:not(.dragging)')];
+  return els.reduce((closest,child)=>{
+    const box=child.getBoundingClientRect(); const offset=y-box.top-box.height/2;
+    if(offset<0&&offset>closest.offset) return {offset,element:child};
+    return closest;
+  },{offset:-Infinity}).element||null;
+}
+function dragEnd(){
+  if(!_drag)return;
+  document.removeEventListener('pointermove',dragMove);
+  _drag.el.classList.remove('dragging');
+  const ids=[..._drag.container.querySelectorAll('.item')].map(el=>el.dataset.id);
+  const upd={}; ids.forEach((id,i)=>{ upd[id+'/order']=i; });
+  fbUpdate('items/'+ACTIVE+'/'+_drag.dayId,upd);
+  _drag=null;
+}
+
+/* ════════════════ 收藏庫頁 ════════════════ */
+const CATS={spot:['景點','📍','t-spot'],food:['餐廳','🍜','t-food'],cafe:['咖啡/甜點','☕','t-food'],shop:['購物','🛍️','t-other'],hotel:['住宿','🏨','t-hotel'],other:['其他','📌','t-other']};
+let _placeFilter='all';
+function renderPlaces(){
+  if(!ACTIVE){ $('places-wrap').innerHTML=`<div class="empty"><span class="big">⭐</span>請先到「旅程」選一趟旅程</div>`; return; }
+  const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k]));
+  let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">⭐ 口袋名單</div><button class="btn sm" onclick="editPlace()">＋ 收藏</button></div>
+  <p style="color:var(--text-muted);font-size:11px;margin:0 4px 8px">收藏好景點/餐廳，隨時一鍵加進行程調整</p>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px">
+    <button class="chip ${_placeFilter==='all'?'on':''}" onclick="_placeFilter='all';renderPlaces()">全部 ${all.length}</button>
+    ${Object.keys(CATS).map(k=>{const n=all.filter(p=>p.cat===k).length;return n?`<button class="chip ${_placeFilter===k?'on':''}" onclick="_placeFilter='${k}';renderPlaces()">${CATS[k][1]} ${CATS[k][0]} ${n}</button>`:''}).join('')}
+  </div>`;
+  const list=all.filter(p=>_placeFilter==='all'||p.cat===_placeFilter).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(list.length===0){ h+=`<div class="empty"><span class="big">📌</span>還沒有收藏<br>看到不錯的地方就存起來吧</div>`; }
+  else h+=list.map(p=>{const c=CATS[p.cat]||CATS.other;
+    return `<div class="card"><div class="place-row">
+      <div class="place-thumb ${c[2]}">${c[1]}</div>
+      <div style="flex:1;min-width:0" onclick="editPlace('${p._id}')">
+        <div style="display:flex;align-items:center;gap:6px"><span class="item-name">${esc(p.name)}</span>${p.rating?`<span style="font-size:11px">${'⭐'.repeat(p.rating)}</span>`:''}</div>
+        ${p.area?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">📍 ${esc(p.area)}</div>`:''}
+        ${p.note?`<div class="item-note">${esc(p.note)}</div>`:''}
+      </div></div>
+      <div class="item-acts" style="padding:0 12px 11px 12px">
+        ${p.mapUrl||p.name?`<a class="mini-link" href="${esc(p.mapUrl||mapsSearchUrl(p.name))}" target="_blank">🗺️ 地圖</a>`:''}
+        <a class="mini-link" href="#" onclick="addPlaceToItin('${p._id}');return false;">➕ 加入行程</a>
+        <a class="mini-link" href="#" onclick="editPlace('${p._id}');return false;">✏️ 編輯</a>
+      </div></div>`;
+  }).join('');
+  $('places-wrap').innerHTML=h;
+}
+function editPlace(id){
+  const p=(id&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][id])||{};
+  modal(`<div class="modal-title">${id?'編輯收藏':'新增收藏'}</div>
+    <label class="fld">類型</label>
+    <div class="seg" id="pl-cat">${Object.keys(CATS).map(k=>`<button data-v="${k}" class="${(p.cat||'spot')===k?'on':''}" onclick="segPick('pl-cat','${k}')">${CATS[k][1]}</button>`).join('')}</div>
+    <label class="fld">名稱</label><input class="tag-input" id="pl-name" placeholder="例：一蘭拉麵 新宿店" value="${esc(p.name||'')}">
+    <label class="fld">區域</label><input class="tag-input" id="pl-area" placeholder="例：新宿" value="${esc(p.area||'')}">
+    <label class="fld">Google Map 連結</label><input class="tag-input" id="pl-map" placeholder="貼上地圖連結" value="${esc(p.mapUrl||'')}">
+    <label class="fld">推薦度</label>
+    <div class="seg" id="pl-rate">${[1,2,3].map(r=>`<button data-v="${r}" class="${(p.rating||0)===r?'on':''}" onclick="segPick('pl-rate','${r}')">${'⭐'.repeat(r)}</button>`).join('')}</div>
+    <label class="fld">備註（必點、營業時間、避雷）</label><textarea class="tag-input" id="pl-note">${esc(p.note||'')}</textarea>
+    <div class="modal-acts">${id?`<button class="btn danger" onclick="confirmDel('刪除此收藏？',()=>{fbRemove('places/${ACTIVE}/${id}');closeModal()})">刪除</button>`:''}
+    <button class="btn" style="flex:1" onclick="savePlace('${id||''}')">儲存</button></div>`);
+}
+function savePlace(id){
+  const name=$('pl-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  const cat=_seg['pl-cat']||(document.querySelector('#pl-cat button.on')?document.querySelector('#pl-cat button.on').dataset.v:'spot');
+  const rating=parseInt(_seg['pl-rate']||(document.querySelector('#pl-rate button.on')?document.querySelector('#pl-rate button.on').dataset.v:0))||0;
+  const obj={cat,name,area:$('pl-area').value.trim(),mapUrl:$('pl-map').value.trim(),note:$('pl-note').value.trim(),rating};
+  if(!id){ id=uid(); obj.createdAt=Date.now(); fbSet('places/'+ACTIVE+'/'+id,obj); } else fbUpdate('places/'+ACTIVE+'/'+id,obj);
+  _seg={}; closeModal(); toast('已儲存');
+}
+function addPlaceToItin(id){
+  const p=DATA.places[ACTIVE][id];
+  const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  if(days.length===0){ toast('請先到行程頁新增天數'); return; }
+  modal(`<div class="modal-title">加入哪一天？</div><p style="color:var(--text-muted);font-size:12px;margin:2px 0 12px">${esc(p.name)}</p>
+  ${days.map((d,i)=>`<button class="btn full gray" style="margin-bottom:8px;justify-content:flex-start" onclick="doAddPlace('${id}','${d._id}')">${esc(d.label||('第'+(i+1)+'天'))} ${d.date?'· '+fmtDate(d.date):''}</button>`).join('')}`);
+}
+function doAddPlace(pid,dayId){
+  const p=DATA.places[ACTIVE][pid];
+  const catToType={spot:'spot',food:'food',cafe:'food',shop:'other',hotel:'hotel',other:'other'};
+  const cur=DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId]?Object.keys(DATA.items[ACTIVE][dayId]).length:0;
+  fbSet('items/'+ACTIVE+'/'+dayId+'/'+uid(),{type:catToType[p.cat]||'spot',name:p.name,mapUrl:p.mapUrl||'',note:p.note||'',time:'',transitMode:'transit',transitMin:'',order:cur});
+  closeModal(); toast('已加入行程');
+}
+
+/* ════════════════ 備忘頁 ════════════════ */
+const SECT={need:['大家的需求','💬'],notice:['注意事項','⚠️'],pack:['必帶清單','🎒'],link:['實用連結','🔗']};
+function renderMemo(){
+  if(!ACTIVE){ $('memo-wrap').innerHTML=`<div class="empty"><span class="big">📝</span>請先到「旅程」選一趟旅程</div>`; return; }
+  const all=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.memos[ACTIVE][k]));
+  let h=`<div class="sec-title" style="margin:6px 4px">📝 備忘錄</div>`;
+  Object.keys(SECT).forEach(sec=>{
+    const items=all.filter(m=>m.section===sec).sort((a,b)=>(a.order||0)-(b.order||0));
+    h+=`<div class="row-between" style="margin:16px 4px 6px"><div style="font-weight:900;font-size:13px;color:var(--text-secondary)">${SECT[sec][1]} ${SECT[sec][0]}</div>
+      <button class="btn sm gray" onclick="addMemoPrompt('${sec}')">＋</button></div>`;
+    if(items.length===0){ h+=`<div style="color:var(--text-muted);font-size:12px;padding:4px 6px 8px">尚無項目</div>`; }
+    else { h+=`<div class="card">`; items.forEach(m=>{
+      const checkable=(sec==='pack');
+      h+=`<div class="memo-item">
+        ${checkable?`<div class="cb ${m.done?'on':''}" onclick="fbUpdate('memos/${ACTIVE}/${m._id}',{done:${m.done?'false':'true'}})"></div>`:`<div style="width:6px;height:6px;border-radius:50%;background:var(--primary);margin-top:8px;flex-shrink:0"></div>`}
+        <div class="memo-txt ${m.done?'done':''}" onclick="editMemo('${m._id}')">${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-weight:700" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:esc(m.text)}${m.by?`<span style="font-size:10px;color:var(--text-muted);margin-left:6px">– ${esc(m.by)}</span>`:''}</div>
+        <button class="x-btn" onclick="fbRemove('memos/${ACTIVE}/${m._id}')">✕</button>
+      </div>`;
+    }); h+=`</div>`; }
+  });
+  $('memo-wrap').innerHTML=h;
+}
+function addMemoPrompt(sec){ editMemo(null,sec||'need'); }
+function editMemo(id,sec){
+  const m=(id&&DATA.memos&&DATA.memos[ACTIVE]&&DATA.memos[ACTIVE][id])||{};
+  sec=m.section||sec||'need';
+  modal(`<div class="modal-title">${id?'編輯':'新增'}備忘</div>
+    <label class="fld">分類</label>
+    <div class="seg" id="m-sec">${Object.keys(SECT).map(k=>`<button data-v="${k}" class="${sec===k?'on':''}" onclick="segPick('m-sec','${k}')">${SECT[k][1]}${SECT[k][0]}</button>`).join('')}</div>
+    <label class="fld">內容</label><textarea class="tag-input" id="m-text" placeholder="例：護照、行動電源、藥品…">${esc(m.text||'')}</textarea>
+    <label class="fld">連結（選填，實用連結用，例：入境卡網址）</label><input class="tag-input" id="m-url" placeholder="https://" value="${esc(m.url||'')}">
+    <div class="modal-acts">${id?`<button class="btn danger" onclick="fbRemove('memos/${ACTIVE}/${id}');closeModal()">刪除</button>`:''}
+    <button class="btn" style="flex:1" onclick="saveMemo('${id||''}')">儲存</button></div>`);
+}
+function saveMemo(id){
+  const text=$('m-text').value.trim(); const url=$('m-url').value.trim(); if(!text&&!url){toast('請輸入內容');return;}
+  const section=_seg['m-sec']||(document.querySelector('#m-sec button.on')?document.querySelector('#m-sec button.on').dataset.v:'need');
+  const obj={section,text:text||url,url,by:ME};
+  if(!id){ const cur=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).filter(k=>DATA.memos[ACTIVE][k].section===section).length; obj.order=cur; obj.done=false; obj.createdAt=Date.now(); fbSet('memos/'+ACTIVE+'/'+uid(),obj); }
+  else fbUpdate('memos/'+ACTIVE+'/'+id,obj);
+  _seg={}; closeModal(); toast('已儲存');
+}
+
+/* ════════════════ 工具頁 ════════════════ */
+function renderTools(){
+  if(!ACTIVE){ $('tools-wrap').innerHTML=`<div class="empty"><span class="big">🧰</span>請先到「旅程」選一趟旅程</div>`; return; }
+  const trip=DATA.trips[ACTIVE];
+  let h=`<div class="sec-title" style="margin:6px 4px">🧰 旅遊工具</div>`;
+
+  // 投票
+  const polls=Object.keys(DATA.polls&&DATA.polls[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.polls[ACTIVE][k])).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  h+=`<div class="row-between" style="margin:14px 4px 6px"><div style="font-weight:900;font-size:13px;color:var(--text-secondary)">🗳️ 群組投票</div><button class="btn sm" onclick="editPoll()">＋ 發起</button></div>`;
+  if(polls.length===0) h+=`<div style="color:var(--text-muted);font-size:12px;padding:0 6px 6px">還沒有投票，發起一個讓大家決定吧</div>`;
+  h+=polls.map(p=>{
+    const opts=Object.keys(p.options||{}).map(k=>Object.assign({_id:k},p.options[k]));
+    const total=opts.reduce((s,o)=>s+Object.keys(o.votes||{}).length,0)||1;
+    return `<div class="card" style="padding:12px"><div class="row-between"><div style="font-weight:700">${esc(p.title)}</div><button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">✕</button></div>
+      ${opts.map(o=>{const cnt=Object.keys(o.votes||{}).length;const pct=Math.round(cnt/total*100);const mine=o.votes&&o.votes[safeKey(ME)];
+        return `<div class="poll-opt" style="cursor:pointer;border:none;padding:8px 0" onclick="votePoll('${p._id}','${o._id}')">
+          <div class="row-between"><span style="font-size:13px;font-weight:${mine?'900':'500'};color:${mine?'var(--primary)':'inherit'}">${mine?'✓ ':''}${esc(o.text)}</span><span style="font-size:12px;font-weight:700;color:var(--text-muted)">${cnt}票</span></div>
+          <div class="poll-bar-bg"><div class="poll-bar" style="width:${pct}%"></div></div>
+          ${cnt?`<div class="voters">${Object.keys(o.votes).join('、')}</div>`:''}</div>`;}).join('')}
+      <button class="btn sm ghost full" style="margin-top:8px" onclick="addPollOpt('${p._id}')">＋ 新增選項</button></div>`;
+  }).join('');
+
+  // 天氣
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">🌤️ 天氣預報</div>
+    <div class="card" style="padding:12px"><div style="display:flex;gap:8px"><input class="tag-input" id="wx-q" placeholder="城市（例：Tokyo、Seoul）" value="${esc(trip.dest||'')}"><button class="btn" onclick="getWeather()">查詢</button></div>
+    <div id="wx-result" style="margin-top:10px;color:var(--text-muted);font-size:12px">輸入城市後查未來天氣（免費，不需金鑰）</div></div>`;
+
+  // 匯率
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">💱 匯率換算</div>
+    <div class="card" style="padding:12px">
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <div style="flex:1"><label class="fld">金額</label><input type="number" class="tag-input" id="fx-amt" value="1000" oninput="doFx()"></div>
+      <div style="width:84px"><label class="fld">從</label><input class="tag-input" id="fx-from" value="${esc(trip.currency||'JPY')}" oninput="doFx()"></div>
+      <div style="width:84px"><label class="fld">到</label><input class="tag-input" id="fx-to" value="TWD" oninput="doFx()"></div>
+    </div>
+    <div id="fx-result" style="margin-top:10px;font-size:15px;font-weight:700;color:var(--primary)">—</div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:2px">即時匯率僅供參考</div></div>`;
+
+  // 匯出
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">📄 匯出 / 離線</div>
+    <div class="card" style="padding:12px">
+    <button class="btn full ghost" onclick="exportPDF()">📄 匯出 / 列印行程（存成 PDF）</button>
+    <p style="font-size:11px;color:var(--text-muted);margin:8px 2px 0;line-height:1.6">列印視窗選「另存為 PDF」即可下載完整行程；app 已支援離線開啟，曾載入的資料沒網路也看得到。</p></div>`;
+
+  $('tools-wrap').innerHTML=h;
+  doFx();
+}
+
+/* ── 投票 ── */
+function editPoll(){
+  modal(`<div class="modal-title">發起投票</div>
+    <label class="fld">主題</label><input class="tag-input" id="pq-title" placeholder="例：第二天晚餐去哪？">
+    <label class="fld">選項（每行一個）</label><textarea class="tag-input" id="pq-opts" style="min-height:90px" placeholder="燒肉&#10;壽司&#10;拉麵"></textarea>
+    <div class="modal-acts"><button class="btn gray" onclick="closeModal()">取消</button><button class="btn" style="flex:2" onclick="savePoll()">發起</button></div>`);
+}
+function savePoll(){
+  const title=$('pq-title').value.trim(); if(!title){toast('請輸入主題');return;}
+  const lines=$('pq-opts').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(lines.length<2){toast('至少兩個選項');return;}
+  const options={}; lines.forEach(t=>{options[uid()]={text:t,votes:{}};});
+  fbSet('polls/'+ACTIVE+'/'+uid(),{title,by:ME,createdAt:Date.now(),options});
+  closeModal(); toast('已發起');
+}
+function votePoll(pollId,optId){
+  const opts=DATA.polls[ACTIVE][pollId].options; const mk=safeKey(ME);
+  const upd={};
+  Object.keys(opts).forEach(k=>{ upd['options/'+k+'/votes/'+mk]= (k===optId && !(opts[k].votes&&opts[k].votes[mk]))?true:null; });
+  fbUpdate('polls/'+ACTIVE+'/'+pollId,upd);
+}
+function addPollOpt(pollId){
+  const t=prompt('新增選項'); if(!t||!t.trim())return;
+  fbSet('polls/'+ACTIVE+'/'+pollId+'/options/'+uid(),{text:t.trim(),votes:{}});
+}
+
+/* ── 天氣（Open-Meteo） ── */
+const WXCODE={0:['☀️','晴'],1:['🌤️','大致晴'],2:['⛅','多雲'],3:['☁️','陰'],45:['🌫️','霧'],48:['🌫️','霧'],51:['🌦️','毛毛雨'],53:['🌦️','小雨'],55:['🌧️','雨'],61:['🌧️','小雨'],63:['🌧️','雨'],65:['🌧️','大雨'],71:['🌨️','小雪'],73:['🌨️','雪'],75:['❄️','大雪'],80:['🌦️','陣雨'],81:['🌧️','陣雨'],82:['⛈️','強陣雨'],95:['⛈️','雷雨'],96:['⛈️','雷雨'],99:['⛈️','雷雨']};
+async function getWeather(){
+  const q=$('wx-q').value.trim(); if(!q){toast('請輸入城市');return;}
+  const box=$('wx-result'); box.textContent='查詢中…';
+  try{
+    const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=zh').then(r=>r.json());
+    if(!g.results||!g.results.length){ box.textContent='找不到這個城市'; return; }
+    const{latitude,longitude,name,country}=g.results[0];
+    const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=14`).then(r=>r.json());
+    const d=w.daily; let html=`<div style="font-weight:700;color:var(--text-primary);margin-bottom:6px">${esc(name)}${country?'・'+esc(country):''}</div><div class="wx-scroll">`;
+    for(let i=0;i<d.time.length;i++){const c=WXCODE[d.weathercode[i]]||['❓',''];const dt=new Date(d.time[i]+'T00:00');
+      html+=`<div class="wx-day"><div style="font-size:11px;font-weight:700;color:var(--text-muted)">${(d.time[i]).slice(5)}</div><div style="font-size:10px;color:var(--text-muted)">週${['日','一','二','三','四','五','六'][dt.getDay()]}</div><div class="wx-emoji">${c[0]}</div><div style="font-size:10px;color:var(--text-muted)">${c[1]}</div><div style="font-size:12px;font-weight:700;margin-top:3px">${Math.round(d.temperature_2m_max[i])}°<span style="color:var(--text-muted)">/${Math.round(d.temperature_2m_min[i])}°</span></div></div>`;}
+    html+=`</div>`; box.innerHTML=html;
+  }catch(e){ box.textContent='查詢失敗，請檢查網路'; }
+}
+
+/* ── 匯率（open.er-api.com） ── */
+let _fxRates=null,_fxBase=null;
+async function doFx(){
+  const amt=parseFloat($('fx-amt')?.value)||0; const from=($('fx-from')?.value||'').trim().toUpperCase(); const to=($('fx-to')?.value||'').trim().toUpperCase();
+  const res=$('fx-result'); if(!res)return; if(!from||!to){res.textContent='—';return;}
+  try{
+    if(_fxBase!==from||!_fxRates){ const j=await fetch('https://open.er-api.com/v6/latest/'+from).then(r=>r.json()); if(j.result!=='success'){res.textContent='查無此幣別';return;} _fxRates=j.rates;_fxBase=from; }
+    const rate=_fxRates[to]; if(!rate){res.textContent='查無此幣別';return;}
+    res.textContent=`${amt.toLocaleString()} ${from} ≈ ${(amt*rate).toLocaleString(undefined,{maximumFractionDigits:2})} ${to}`;
+  }catch(e){ res.textContent='匯率查詢失敗'; }
+}
+
+/* ── 匯出 PDF ── */
+function exportPDF(){
+  const trip=DATA.trips[ACTIVE]; const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  let h=`<h1 style="font-family:sans-serif">${esc(trip.name)}</h1><div style="color:#555">📍 ${esc(trip.dest||'')} ${trip.startDate?'｜'+esc(trip.startDate)+(trip.endDate?' ~ '+esc(trip.endDate):''):''}</div><hr>`;
+  days.forEach((day,di)=>{
+    const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][day._id],'order');
+    h+=`<h2 style="margin:16px 0 6px">${esc(day.label||('第'+(di+1)+'天'))} ${day.date?'<span style=\"font-size:13px;color:#777\">'+esc(day.date)+'</span>':''}</h2>`;
+    if(!items.length){ h+=`<div style="color:#999">（無安排）</div>`; }
+    items.forEach((it,ii)=>{const ty=TYPES[it.type]||TYPES.other;
+      h+=`<div style="margin:6px 0;padding-left:8px;border-left:3px solid #5b52e8">
+        <b>${it.time?esc(it.time)+'　':''}${ty[1]} ${esc(it.name)}</b>
+        ${it.note?`<div style="font-size:12px;color:#555;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>`;
+      if(ii<items.length-1&&it.transitMin){const md=MODES[it.transitMode]||MODES.transit;h+=`<div style="font-size:11px;color:#999;padding-left:10px">↓ ${md[1]} ${esc(it.transitMin)}分</div>`;}
+    });
+  });
+  // 備忘
+  const memos=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).map(k=>DATA.memos[ACTIVE][k]);
+  if(memos.length){ h+=`<hr><h2>📝 備忘</h2>`; Object.keys(SECT).forEach(sec=>{const ms=memos.filter(m=>m.section===sec);if(ms.length){h+=`<b>${SECT[sec][1]} ${SECT[sec][0]}</b><ul style="margin:4px 0">`+ms.map(m=>`<li>${esc(m.text)}${m.url?' ('+esc(m.url)+')':''}</li>`).join('')+`</ul>`;}}); }
+  $('print-area').innerHTML=h;
+  setTimeout(()=>{ window.print(); },200);
+}
+
+/* ════════════════ 啟動 ════════════════ */
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); }
+window.addEventListener('load', startSync);
+</script>
+</body>
+</html>

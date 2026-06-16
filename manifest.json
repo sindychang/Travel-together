@@ -1,0 +1,14 @@
+{
+  "name": "旅遊行程規劃",
+  "short_name": "旅遊行程",
+  "description": "多人共編的出國旅遊行程規劃 app",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#5b52e8",
+  "theme_color": "#5b52e8",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "https://api.iconify.design/twemoji/luggage.svg?width=192", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "https://api.iconify.design/twemoji/luggage.svg?width=512", "sizes": "512x512", "type": "image/svg+xml" }
+  ]
+}
