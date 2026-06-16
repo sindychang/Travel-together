@@ -257,6 +257,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyAM9fK8cOIyyTuELrTi2b5yt0Nm-1SBZ8I",
   authDomain: "travel-together-7168a.firebaseapp.com",
+  databaseURL: "https://travel-together-7168a-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "travel-together-7168a",
   storageBucket: "travel-together-7168a.firebasestorage.app",
   messagingSenderId: "789216457084",
@@ -444,7 +445,7 @@ function roleList(){
 function renderRoles(){
   const arr=roleList();
   $('role-grid').innerHTML=arr.map(([n,e])=>
-    `<button class="role-btn" onclick="pickRole(${JSON.stringify(n)})"><span class="rb-emoji">${e}</span>${esc(n)}</button>`
+    `<button class="role-btn" data-n="${esc(n)}" onclick="pickRole(this.dataset.n)"><span class="rb-emoji">${e}</span>${esc(n)}</button>`
   ).join('')+`<button class="role-btn role-add" onclick="addRole()"><span class="rb-emoji">＋</span>新增成員</button>`;
 }
 function ensureDefaultRoles(){
@@ -463,7 +464,7 @@ function pickRole(name){ ME=name; localStorage.setItem('tv_me',name); $('lock').
 function openMe(){
   const arr=roleList();
   modal(`<div class="modal-title">切換成員</div><p style="color:var(--text-muted);font-size:12px;margin:2px 0 14px">目前：${esc(ME)}</p>
-  <div class="role-grid" style="grid-template-columns:repeat(2,1fr)">${arr.map(([n,e])=>`<button class="role-btn" style="background:var(--bg);border-color:var(--border);color:var(--text-primary)" onclick="pickRole(${JSON.stringify(n)});closeModal()"><span class="rb-emoji">${e}</span>${esc(n)}</button>`).join('')}
+  <div class="role-grid" style="grid-template-columns:repeat(2,1fr)">${arr.map(([n,e])=>`<button class="role-btn" style="background:var(--bg);border-color:var(--border);color:var(--text-primary)" data-n="${esc(n)}" onclick="pickRole(this.dataset.n);closeModal()"><span class="rb-emoji">${e}</span>${esc(n)}</button>`).join('')}
   <button class="role-btn role-add" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary-dark)" onclick="closeModal();addRole()"><span class="rb-emoji">＋</span>新增</button></div>`);
 }
 
@@ -1286,42 +1287,16 @@ function votePoll(pollId,optId){
   saveData(); scheduleRender();
   if(db) ref('polls/'+ACTIVE+'/'+pollId+'/options').set(opts).catch(()=>{});
 }
-function addPollOpt(pollId){ editPoll(pollId); }
-
-/* ── 天氣 ── */
-const WXCODE={0:['☀️','晴'],1:['🌤️','大致晴'],2:['⛅','多雲'],3:['☁️','陰'],45:['🌫️','霧'],48:['🌫️','霧'],51:['🌦️','毛毛雨'],53:['🌦️','小雨'],55:['🌧️','雨'],61:['🌧️','小雨'],63:['🌧️','雨'],65:['🌧️','大雨'],71:['🌨️','小雪'],73:['🌨️','雪'],75:['❄️','大雪'],80:['🌦️','陣雨'],81:['🌧️','陣雨'],82:['⛈️','強陣雨'],95:['⛈️','雷雨'],96:['⛈️','雷雨'],99:['⛈️','雷雨']};
-async function getWeather(){
-  const q=$('wx-q').value.trim(); if(!q){toast('請輸入城市');return;}
-  const box=$('wx-result'); box.textContent='查詢中…';
-  try{
-    const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=zh').then(r=>r.json());
-    if(!g.results||!g.results.length){box.textContent='找不到這個城市';return;}
-    const{latitude,longitude,name,country}=g.results[0];
-    const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=14`).then(r=>r.json());
-    const d=w.daily; let html=`<div style="font-weight:700;color:var(--text-primary);margin-bottom:6px">${esc(name)}${country?'・'+esc(country):''}</div><div class="wx-scroll">`;
-    for(let i=0;i<d.time.length;i++){const c=WXCODE[d.weathercode[i]]||['❓',''];const dt=new Date(d.time[i]+'T00:00');
-      html+=`<div class="wx-day"><div style="font-size:11px;font-weight:700;color:var(--text-muted)">${d.time[i].slice(5)}</div><div style="font-size:10px;color:var(--text-muted)">週${['日','一','二','三','四','五','六'][dt.getDay()]}</div><div class="wx-emoji">${c[0]}</div><div style="font-size:10px;color:var(--text-muted)">${c[1]}</div><div style="font-size:12px;font-weight:700;margin-top:3px">${Math.round(d.temperature_2m_max[i])}°<span style="color:var(--text-muted)">/${Math.round(d.temperature_2m_min[i])}°</span></div></div>`;}
-    html+=`</div>`; box.innerHTML=html;
-  }catch(e){box.textContent='查詢失敗，請檢查網路';}
+function addPollOpt(pollId){
+  const t=prompt('新增選項'); if(!t||!t.trim())return;
+  fbSet('polls/'+ACTIVE+'/'+pollId+'/options/'+uid(),{text:t.trim(),votes:{}});
 }
 
-/* ── 匯率 ── */
-let _fxRates=null,_fxBase=null;
-async function doFx(){
-  const amt=parseFloat($('fx-amt')?.value)||0; const from=($('fx-from')?.value||'').trim().toUpperCase(); const to=($('fx-to')?.value||'').trim().toUpperCase();
-  const res=$('fx-result'); if(!res)return; if(!from||!to){res.textContent='—';return;}
-  try{
-    if(_fxBase!==from||!_fxRates){const j=await fetch('https://open.er-api.com/v6/latest/'+from).then(r=>r.json());if(j.result!=='success'){res.textContent='查無此幣別';return;}_fxRates=j.rates;_fxBase=from;}
-    const rate=_fxRates[to]; if(!rate){res.textContent='查無此幣別';return;}
-    res.textContent=`${amt.toLocaleString()} ${from} ≈ ${(amt*rate).toLocaleString(undefined,{maximumFractionDigits:2})} ${to}`;
-  }catch(e){res.textContent='匯率查詢失敗';}
-}
-
-/* ── 資料備份 ── */
+/* ── 備份/還原 ── */
 function exportData(){
   const date=new Date().toISOString().slice(0,10);
-  const name=(DATA.trips&&Object.keys(DATA.trips||{}).length===1&&Object.values(DATA.trips)[0].name)?Object.values(DATA.trips)[0].name:'all';
-  const filename=`travel_backup_${name}_${date}.json`.replace(/[^\w.\-一-鿿]/g,'_');
+  const name=(DATA.trips&&Object.keys(DATA.trips||{}).length===1&&Object.values(DATA.trips)[0]&&Object.values(DATA.trips)[0].name)?Object.values(DATA.trips)[0].name:'all';
+  const filename=('travel_backup_'+name+'_'+date+'.json').replace(/[^\w.\-一-鿿]/g,'_');
   const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
@@ -1348,42 +1323,59 @@ function importData(event){
   reader.readAsText(file);
 }
 
+/* ── 天氣 ── */
+const WXCODE={0:['☀️','晴'],1:['🌤️','大致晴'],2:['⛅','多雲'],3:['☁️','陰'],45:['🌫️','霧'],48:['🌫️','霧'],51:['🌦️','毛毛雨'],53:['🌦️','小雨'],55:['🌧️','雨'],61:['🌧️','小雨'],63:['🌧️','雨'],65:['🌧️','大雨'],71:['🌨️','小雪'],73:['🌨️','雪'],75:['❄️','大雪'],80:['🌦️','陣雨'],81:['🌧️','陣雨'],82:['⛈️','強陣雨'],95:['⛈️','雷雨'],96:['⛈️','雷雨'],99:['⛈️','雷雨']};
+async function getWeather(){
+  const q=$('wx-q').value.trim(); if(!q){toast('請輸入城市');return;}
+  const box=$('wx-result'); box.textContent='查詢中…';
+  try{
+    const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=zh').then(r=>r.json());
+    if(!g.results||!g.results.length){ box.textContent='找不到這個城市'; return; }
+    const{latitude,longitude,name,country}=g.results[0];
+    const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=14`).then(r=>r.json());
+    const d=w.daily; let html=`<div style="font-weight:700;color:var(--text-primary);margin-bottom:6px">${esc(name)}${country?'・'+esc(country):''}</div><div class="wx-scroll">`;
+    for(let i=0;i<d.time.length;i++){const c=WXCODE[d.weathercode[i]]||['❓',''];const dt=new Date(d.time[i]+'T00:00');
+      html+=`<div class="wx-day"><div style="font-size:11px;font-weight:700;color:var(--text-muted)">${(d.time[i]).slice(5)}</div><div style="font-size:10px;color:var(--text-muted)">週${['日','一','二','三','四','五','六'][dt.getDay()]}</div><div class="wx-emoji">${c[0]}</div><div style="font-size:10px;color:var(--text-muted)">${c[1]}</div><div style="font-size:12px;font-weight:700;margin-top:3px">${Math.round(d.temperature_2m_max[i])}°<span style="color:var(--text-muted)">/${Math.round(d.temperature_2m_min[i])}°</span></div></div>`;}
+    html+=`</div>`; box.innerHTML=html;
+  }catch(e){ box.textContent='查詢失敗，請檢查網路'; }
+}
+
+/* ── 匯率（open.er-api.com） ── */
+let _fxRates=null,_fxBase=null;
+async function doFx(){
+  const amt=parseFloat($('fx-amt')?.value)||0; const from=($('fx-from')?.value||'').trim().toUpperCase(); const to=($('fx-to')?.value||'').trim().toUpperCase();
+  const res=$('fx-result'); if(!res)return; if(!from||!to){res.textContent='—';return;}
+  try{
+    if(_fxBase!==from||!_fxRates){ const j=await fetch('https://open.er-api.com/v6/latest/'+from).then(r=>r.json()); if(j.result!=='success'){res.textContent='查無此幣別';return;} _fxRates=j.rates;_fxBase=from; }
+    const rate=_fxRates[to]; if(!rate){res.textContent='查無此幣別';return;}
+    res.textContent=`${amt.toLocaleString()} ${from} ≈ ${(amt*rate).toLocaleString(undefined,{maximumFractionDigits:2})} ${to}`;
+  }catch(e){ res.textContent='匯率查詢失敗'; }
+}
+
 /* ── 匯出 PDF ── */
 function exportPDF(){
   const trip=DATA.trips[ACTIVE]; const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
   let h=`<h1 style="font-family:sans-serif">${esc(trip.name)}</h1><div style="color:#555">📍 ${esc(trip.dest||'')} ${trip.startDate?'｜'+esc(trip.startDate)+(trip.endDate?' ~ '+esc(trip.endDate):''):''}</div><hr>`;
   days.forEach((day,di)=>{
     const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][day._id],'order');
-    h+=`<h2 style="margin:16px 0 6px">${esc(day.label||('第'+(di+1)+'天'))} ${day.date?`<span style="font-size:13px;color:#777">${esc(day.date)}</span>`:''}</h2>`;
-    if(!items.length) h+=`<div style="color:#999">（無安排）</div>`;
-    items.forEach((it,ii)=>{const ty=TYPES[it.type]||TYPES.spot;
-      h+=`<div style="margin:6px 0;padding-left:8px;border-left:3px solid #2e6b7a"><b>${it.time?esc(it.time)+'　':''}[${ty.lbl}] ${esc(it.name)}</b>${it.note?`<div style="font-size:12px;color:#555;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>`;
-      if(ii<items.length-1&&it.transitMin)h+=`<div style="font-size:11px;color:#999;padding-left:10px">↓ ${MODES[it.transitMode]?.[0]||''} ${esc(it.transitMin)}分</div>`;
+    h+=`<h2 style="margin:16px 0 6px">${esc(day.label||('第'+(di+1)+'天'))} ${day.date?'<span style=\"font-size:13px;color:#777\">'+esc(day.date)+'</span>':''}</h2>`;
+    if(!items.length){ h+=`<div style="color:#999">（無安排）</div>`; }
+    items.forEach((it,ii)=>{const ty=TYPES[it.type]||TYPES.other;
+      h+=`<div style="margin:6px 0;padding-left:8px;border-left:3px solid #5b52e8">
+        <b>${it.time?esc(it.time)+'　':''}${ty[1]} ${esc(it.name)}</b>
+        ${it.note?`<div style="font-size:12px;color:#555;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>`;
+      if(ii<items.length-1&&it.transitMin){const md=MODES[it.transitMode]||MODES.transit;h+=`<div style="font-size:11px;color:#999;padding-left:10px">↓ ${md[1]} ${esc(it.transitMin)}分</div>`;}
     });
   });
   const memos=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).map(k=>DATA.memos[ACTIVE][k]);
-  if(memos.length){h+=`<hr><h2>📝 備忘</h2>`;Object.keys(SECT).forEach(sec=>{const ms=memos.filter(m=>m.section===sec);if(ms.length){h+=`<b>${SECT[sec][0]}</b><ul style="margin:4px 0">`+ms.map(m=>`<li>${esc(m.text||m.url)}${m.url?' ('+esc(m.url)+')':''}</li>`).join('')+`</ul>`;}}); }
-  $('print-area').innerHTML=h; setTimeout(()=>window.print(),200);
+  if(memos.length){ h+=`<hr><h2>📝 備忘</h2>`; Object.keys(SECT).forEach(sec=>{const ms=memos.filter(m=>m.section===sec);if(ms.length){h+=`<b>${SECT[sec][1]} ${SECT[sec][0]}</b><ul style="margin:4px 0">`+ms.map(m=>`<li>${esc(m.text)}${m.url?' ('+esc(m.url)+')':''}</li>`).join('')+`</ul>`;}}); }
+  $('print-area').innerHTML=h;
+  setTimeout(()=>{ window.print(); },200);
 }
 
-/* ════════════ 啟動 ════════════ */
-function migrateOldData(){
-  if(localStorage.getItem('tv_migrated_v2')) return;
-  const old=localStorage.getItem('tv_data');
-  if(!old) return;
-  try{
-    const d=JSON.parse(old);
-    if(d&&Object.keys(d).length>0){
-      if(!localStorage.getItem('tv_data2')){
-        localStorage.setItem('tv_data2',old);
-        toast('已匯入舊版本資料 ✓');
-      }
-    }
-  }catch(e){}
-  localStorage.setItem('tv_migrated_v2','1');
-}
+/* ════════════════ 啟動 ════════════════ */
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); }
-window.addEventListener('load', ()=>{ migrateOldData(); startSync(); });
+window.addEventListener('load', startSync);
 </script>
 </body>
 </html>
