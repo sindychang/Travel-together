@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+  <link rel="apple-touch-icon" href="chiikawa_travel.png">
+  <link rel="icon" type="image/png" href="chiikawa_travel.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1217,17 +1219,17 @@ function renderTodosSection(){
       const total=opts.reduce((s,o)=>s+Object.keys(o.votes||{}).length,0)||1;
       const over=p.dueDate&&p.dueDate<today; const dueToday=p.dueDate===today;
       return `<div class="card" style="padding:12px">
-        <div class="row-between">
+        <div class="row-between" style="align-items:flex-start">
           <div style="flex:1;min-width:0;margin-right:8px">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span style="font-size:15px;font-weight:900;letter-spacing:-0.2px;color:var(--primary-dark)">${esc(p.title)}</span>
-              ${p.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(p.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
-            </div>
+            <span style="font-size:17px;font-weight:900;letter-spacing:-0.3px;color:var(--primary-dark)">${esc(p.title)}</span>
             ${(p.selType==='multi'||p.voteType==='anonymous')?`<div style="display:flex;gap:4px;margin-top:4px">${p.selType==='multi'?'<span style="font-size:10px;background:#e0e7ff;color:#3730a3;padding:2px 7px;border-radius:999px;font-weight:700">☑ 複選</span>':''}${p.voteType==='anonymous'?'<span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:2px 7px;border-radius:999px;font-weight:700">🕵️ 匿名</span>':''}</div>`:''}
           </div>
-          <div style="display:flex;gap:2px;flex-shrink:0">
-            <button class="x-btn" onclick="event.stopPropagation();editPoll('${p._id}')">${fi('edit-2',14)}</button>
-            <button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">${fi('trash-2',14)}</button>
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            ${p.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(p.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
+            <div style="display:flex;gap:2px">
+              <button class="x-btn" onclick="event.stopPropagation();editPoll('${p._id}')">${fi('edit-2',14)}</button>
+              <button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">${fi('trash-2',14)}</button>
+            </div>
           </div>
         </div>
         ${opts.map(o=>{const cnt=Object.keys(o.votes||{}).length;const pct=Math.round(cnt/total*100);const mine=o.votes&&o.votes[safeKey(ME)];
@@ -1374,7 +1376,7 @@ function renderTools(){
     <div class="card" style="padding:12px">
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.7">管理成員名單，加入旅程時可從這裡選擇身分。</p>
       ${_roleArr.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${_roleArr.map(r=>`<div style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:4px 12px 4px 10px"><span style="font-size:18px">${r.emoji||'😎'}</span><span style="font-size:13px;font-weight:700">${esc(r.name)}</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 0 0 6px;font-size:13px;line-height:1" onclick="confirmDel('移除「${esc(r.name).replace(/['"]/g,'')}」？',()=>fbRemove('trips/${ACTIVE}/roles/${r.k}'))">${fi('x',11)}</button></div>`).join('')}</div>`:'<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">尚無成員</p>'}
-      <div style="display:flex;gap:8px"><input class="tag-input" id="role-add-name" placeholder="輸入成員名字" style="flex:1"><button class="btn sm" onclick="addRoleWithPicker()">${fi('user-plus',13)} 新增</button></div>
+      <button class="btn sm" style="margin-top:4px" onclick="addRoleWithPicker()">${fi('user-plus',13)} 新增成員</button>
     </div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('database',13)} 資料備份與還原</div>
     <div class="card" style="padding:14px">
