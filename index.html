@@ -74,8 +74,9 @@
   .chip{padding:4px 11px;border-radius:999px;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:var(--surface);color:#64748b;white-space:nowrap;transition:.15s;display:inline-flex;align-items:center;gap:4px}
   .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
   .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700}
-  .tag-input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text-primary);outline:none;transition:.15s}
+  .tag-input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text-primary);outline:none;transition:.15s;min-width:0;box-sizing:border-box}
   .tag-input:focus{border-color:var(--primary);background:#fff}
+  input[type="date"].tag-input,input[type="time"].tag-input,input[type="number"].tag-input{-webkit-appearance:none;appearance:none}
   label.fld{display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin:10px 2px 5px}
   textarea.tag-input{resize:vertical;min-height:60px}
   .edit-info{font-size:10px;color:var(--text-muted);margin-top:4px}
@@ -175,7 +176,7 @@
   /* ── modal ── */
   .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
   .modal-bg.show{display:flex}
-  .modal{background:#fff;width:100%;max-width:680px;border-radius:22px 22px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,0px) + 18px);max-height:90vh;overflow-y:auto;animation:slideup .25s;position:relative}
+  .modal{background:#fff;width:100%;max-width:680px;border-radius:22px 22px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom,0px) + 18px);max-height:90vh;overflow-y:auto;animation:slideup .25s;position:relative;box-sizing:border-box}
   @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
   .modal-grip{width:40px;height:4px;background:var(--border);border-radius:999px;margin:0 auto 14px}
   .modal-x{position:absolute;top:16px;right:16px;background:none;border:none;padding:4px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;border-radius:6px;transition:.15s}
@@ -899,7 +900,8 @@ function saveDayMeta(id){ fbUpdate('days/'+ACTIVE+'/'+id,{label:$('d-label').val
 
 /* 班機 */
 let _flightMembers=[];
-function toggleFlightMember(name,btn){
+function toggleFlightMember(btn){
+  const name=btn.dataset.name;
   const idx=_flightMembers.indexOf(name);
   if(idx>=0) _flightMembers.splice(idx,1); else _flightMembers.push(name);
   btn.classList.toggle('on');
@@ -910,7 +912,7 @@ function editFlight(id){
   _flightMembers=[...existMem];
   const _roles=Object.values(tripRoles(ACTIVE));
   const memberChips=_roles.length
-    ?_roles.map(r=>`<button class="chip${_flightMembers.includes(r.name)?' on':''}" style="margin:3px 3px 3px 0" onclick="toggleFlightMember('${esc(r.name).replace(/'/g,'\\&#39;')}',this)">${r.emoji||'😎'} ${esc(r.name)}</button>`).join('')
+    ?_roles.map(r=>`<button class="chip${_flightMembers.includes(r.name)?' on':''}" style="margin:3px 3px 3px 0" data-name="${esc(r.name)}" onclick="toggleFlightMember(this)">${r.emoji||'😎'} ${esc(r.name)}</button>`).join('')
     :`<span style="font-size:12px;color:var(--text-muted)">尚無成員，請先到工具頁新增</span>`;
   modal(`<div class="modal-title">✈️ ${id?'編輯':'新增'}班機</div>
     <label class="fld">航班號碼（例：CI101、JL823）</label><input class="tag-input" id="fl-no" value="${esc(f.flightNo||'')}">
@@ -1373,10 +1375,10 @@ function renderTools(){
     <div id="wx-result" style="margin-top:10px;color:var(--text-muted);font-size:12px">輸入城市後查未來天氣</div></div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('refresh-cw',13)} 匯率換算</div>
     <div class="card" style="padding:12px">
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <div style="flex:1"><label class="fld">金額</label><input type="number" class="tag-input" id="fx-amt" value="1000" oninput="doFx()"></div>
-      <div style="width:84px"><label class="fld">從</label><input class="tag-input" id="fx-from" value="${esc(trip.currency||'JPY')}" oninput="doFx()"></div>
-      <div style="width:84px"><label class="fld">到</label><input class="tag-input" id="fx-to" value="TWD" oninput="doFx()"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:2;min-width:110px"><label class="fld">金額</label><input type="number" class="tag-input" id="fx-amt" value="1000" oninput="doFx()"></div>
+      <div style="flex:1;min-width:70px"><label class="fld">從</label><input class="tag-input" id="fx-from" value="${esc(trip.currency||'JPY')}" oninput="doFx()"></div>
+      <div style="flex:1;min-width:70px"><label class="fld">到</label><input class="tag-input" id="fx-to" value="TWD" oninput="doFx()"></div>
     </div>
     <div id="fx-result" style="margin-top:10px;font-size:15px;font-weight:700;color:var(--primary)">—</div></div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('file-text',13)} 匯出 / 離線</div>
