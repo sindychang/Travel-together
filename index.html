@@ -577,7 +577,7 @@ function closeModal(){ $('modal-bg').classList.remove('show'); _seg={}; }
 
 function updateFab(){
   const f=$('fab'); f.innerHTML=fi('plus',22);
-  const show=(CURPAGE==='trips')||(CURPAGE==='itin'&&ACTIVE)||(CURPAGE==='places'&&ACTIVE)||(CURPAGE==='memo'&&ACTIVE);
+  const show=(CURPAGE==='trips')||(CURPAGE==='itin'&&ACTIVE)||(CURPAGE==='places'&&ACTIVE)||(CURPAGE==='memo'&&ACTIVE&&_memoTab!=='todo');
   f.classList.toggle('hidden',!show);
 }
 function fabAction(){
@@ -1029,13 +1029,15 @@ let _placeFilter='all', _placeQuery='', _discQuery='', _discResults=[], _discCat
 function renderPlaces(){
   if(!ACTIVE){ $('places-wrap').innerHTML=`<div class="empty"><span class="big">${fi('bookmark',40)}</span>請先選一趟旅程</div>`; return; }
   const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k]));
-  let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">${fi('bookmark',15)} 口袋名單</div><button class="btn sm" onclick="editPlace()">${fi('plus',13)} 收藏</button></div>
-  <div style="display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px">
+  let h=`<div id="places-hdr" style="position:sticky;top:0;z-index:8;background:var(--bg);margin:0 -14px;padding:8px 14px 2px">
+  <div class="sec-title" style="margin:0 0 8px">${fi('bookmark',15)} 口袋名單</div>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px">
     <button class="chip ${_placeFilter==='all'?'on':''}" onclick="_placeFilter='all';renderPlaces()">全部 ${all.length}</button>
     ${catArr().map(({k,lbl,icon})=>{const n=all.filter(p=>p.cat===k).length;return n?`<button class="chip ${_placeFilter===k?'on':''}" onclick="_placeFilter='${k}';renderPlaces()">${fi(icon,11)} ${lbl} ${n}</button>`:''}).join('')}
   </div>
-  <div style="padding:0 0 10px">
+  <div style="padding:0 0 8px">
     <input id="place-search" class="tag-input" style="max-width:240px;font-size:13px;padding:6px 10px" placeholder="搜尋名稱或備註…" value="${esc(_placeQuery)}" oninput="_placeQuery=this.value;renderPlaces()">
+  </div>
   </div>`;
   const _pq=_placeQuery.toLowerCase();
   const list=all.filter(p=>(_placeFilter==='all'||p.cat===_placeFilter)&&(!_pq||((p.name||'').toLowerCase().includes(_pq)||((p.note||'').toLowerCase().includes(_pq))))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -1056,6 +1058,7 @@ function renderPlaces(){
       </div></div>`;
   }).join('');
   $('places-wrap').innerHTML=h;
+  const _ph=$('places-hdr');if(_ph){_ph.style.top=($('topbar')?.offsetHeight||60)+'px';}
   if(_placeQuery){const s=$('place-search');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length);}}
 }
 function editPlace(id){
@@ -1210,6 +1213,7 @@ function renderMemo(){
   if(_memoTab==='todo') h+=renderTodosSection();
   else h+=renderMemosSection();
   $('memo-wrap').innerHTML=h;
+  updateFab();
 }
 
 /* ── 待辦事項 ── */
@@ -1314,7 +1318,7 @@ function renderMemosSection(){
         ${fi(SECT[sec][1],13)} ${getSectLabel(sec)}
         <button style="background:none;border:none;padding:2px;color:var(--text-muted);cursor:pointer;display:inline-flex" onclick="renameSect('${sec}')" title="重新命名">${fi('edit-2',11)}</button>
       </div>
-      <button class="btn sm gray" onclick="addMemoPrompt('${sec}')">${fi('plus',12)}</button></div>`;
+      </div>`;
     if(!items.length) h+=`<div style="color:var(--text-muted);font-size:12px;padding:4px 6px 8px">尚無項目</div>`;
     else {
       h+=`<div class="card">`;
@@ -1322,12 +1326,11 @@ function renderMemosSection(){
         const fmt=m.format||'text';
         const isCheck=(fmt==='checklist');
         h+=`<div class="memo-item">
-          ${!isCheck?`<div style="width:6px;height:6px;border-radius:50%;background:var(--primary);margin-top:8px;flex-shrink:0"></div>`:''}
           <div class="memo-txt ${m.done?'done':''}" style="flex:1" onclick="editMemo('${m._id}')">
             ${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-weight:700" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:
               fmt==='bullets'?m.text.split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>'):
               fmt==='checklist'?renderChecklistItems(m):
-              esc(m.text)}
+              esc(m.text).replace(/\n/g,'<br>')}
             ${m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:''}
           </div>
           <button class="x-btn" onclick="fbRemove('memos/${ACTIVE}/${m._id}')">${fi('x',14)}</button>
