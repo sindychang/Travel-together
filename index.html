@@ -618,6 +618,12 @@ function typePill(type){
 function mapsSearchUrl(q){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q); }
 function mapsEmbedUrl(q){ return 'https://maps.google.com/maps?q='+encodeURIComponent(q)+'&z=15&output=embed'; }
 function mapsDirUrl(from,to,mode){ const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit'; return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(from)+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function getItemNavUrl(fromItem,toItem,mode){
+  const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+  const pt=item=>{const c=extractCoordsFromUrl(item.mapUrl||'');if(c)return c.lat+','+c.lng;return encodeURIComponent((item.name||'')+(dest?' '+dest:''));};
+  const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit';
+  return 'https://www.google.com/maps/dir/?api=1&origin='+pt(fromItem)+'&destination='+pt(toItem)+'&travelmode='+m;
+}
 function sortedBy(obj,key){ if(!obj)return[]; return Object.keys(obj).map(k=>Object.assign({_id:k},obj[k])).sort((a,b)=>(a[key]||0)-(b[key]||0)); }
 function appPrompt(title,def,cb){
   const bg=$('cdialog-bg'),bx=$('cdialog');
@@ -652,6 +658,7 @@ function fmtTs(ts){ if(!ts)return''; const d=new Date(ts); return d.getFullYear(
 function renderAll(){
   syncMe(); ensureDefaultRoles();
   $('me-name').textContent=ME||'身分';
+  {const _r=tripRoles(ACTIVE);const _mk=ME&&Object.keys(_r).find(k=>_r[k].name===ME);const _me=(_mk&&_r[_mk].emoji)||'';const _dot=document.querySelector('#me-btn .me-dot');if(_dot){_dot.textContent=_me;_dot.style.cssText=_me?'font-size:18px;width:auto;height:auto;background:none;border-radius:0;line-height:1;vertical-align:middle':'';}}
   const trip=DATA.trips&&DATA.trips[ACTIVE];
   $('tb-title').textContent=trip?trip.name:'旅遊行程';
   $('tb-sub').textContent=trip?(esc(trip.dest||'')+(trip.startDate?' · '+trip.startDate.replace(/-/g,'/')+(trip.endDate?'~'+trip.endDate.replace(/-/g,'/'):'')+' ':' ') ):'一起規劃完美旅程';
@@ -810,12 +817,11 @@ function autoCreateDays(tripId,start,end){
 
 /* ════════════ 行程頁 ════════════ */
 let _openDays={};
-let _flightsOpen=true;
+let _flightsOpen=false;
 function renderItin(){
   if(!ACTIVE){ $('itin-wrap').innerHTML=`<div class="empty"><span class="big">${fi('calendar',40)}</span>請先到「旅程」選一趟旅程</div>`; return; }
   const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
-  let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">${fi('calendar',15)} 完整行程</div>
-    <div style="display:flex;gap:6px"><button class="btn sm gray" onclick="addDay()">${fi('plus',12)} 天數</button><button class="btn sm" onclick="addItemPrompt()">${fi('plus',12)} 行程</button></div></div>`;
+  let h=`<div style="margin:8px 4px 14px;display:flex;align-items:center;gap:8px"><span style="font-size:22px;font-weight:900;color:var(--text-primary)">${fi('calendar',22)} 完整行程</span></div>`;
 
   // 班機資訊（國際旅遊才顯示）
   const _tripType=(DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].type)||'international';
@@ -835,7 +841,7 @@ function renderItin(){
       <div class="flight-body" onclick="editFlight('${f._id}')">
         <div class="flight-no">${f.direction?`<span class="dir-tag ${f.direction==='out'?'dir-out':'dir-back'}">${f.direction==='out'?'去程':'回程'}</span>`:''}<span>${esc(f.flightNo||'班機')}${f.depDate?` · ${f.depDate.replace(/-/g,'/')}`:''}</span></div>
         <div class="flight-time">${esc(f.depTime||'--:--')} 出發 → ${esc(f.arrTime||'--:--')} 抵達${f.arrDate&&f.arrDate!==f.depDate?` (${fmtDateShort(f.arrDate)})`:''}</div>
-        ${f.members?`<div class="flight-members">${fi('users',10)} ${esc(f.members)}</div>`:''}
+        ${(()=>{if(!f.members)return'';const rn=new Set(Object.values(tripRoles(ACTIVE)).map(r=>r.name));const v=f.members.split(',').map(s=>s.trim()).filter(s=>s&&rn.has(s));return v.length?`<div class="flight-members">${fi('users',10)} ${esc(v.join(', '))}</div>`:''})()}
         ${f.note?`<div class="flight-members">${fi('message-square',10)} ${esc(f.note)}</div>`:''}
       </div>
       <button class="x-btn" onclick="event.stopPropagation();confirmDel('刪除此班機？',()=>fbRemove('flights/${ACTIVE}/${f._id}'))">${fi('trash-2',14)}</button>
@@ -851,10 +857,12 @@ function renderItin(){
     h+=`<div class="${_dhCls}" onclick="toggleDay('${day._id}')">
       <div class="dh-l"><span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
       <span class="day-date">${day.date?fmtDate(day.date):'未設定日期'}</span></div>
-      <div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--text-muted);font-weight:700">${items.length}項</span>
-      ${items.length>=2?`<button class="btn sm" style="padding:3px 8px;font-size:10px;background:var(--warm);color:#fff;border-radius:6px;border:none" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 路線</button>`:''}
-  <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
-      <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span></div></div>`;
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--text-muted);font-weight:700">${items.length}項</span>
+        ${items.length>=2?`<button style="margin-left:4px;padding:3px 9px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 整天路線</button>`:''}
+        <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
+        <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span>
+      </div></div>`;
     if(open){
       h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
       if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排，點下方加入</div>`;
@@ -862,29 +870,30 @@ function renderItin(){
         h+=`<div class="item" data-day="${day._id}" data-id="${it._id}">
           <div class="item-handle" onpointerdown="dragStart(event,'${day._id}','${it._id}')">${fi('menu',16)}</div>
           <div class="item-body" onclick="itemMenu('${day._id}','${it._id}')">
-            <div class="item-top">
-              ${typePill(it.type)}
-              ${it.time?`<span class="item-time">${fi('clock',11)} ${esc(it.time)}</span>`:''}
-            </div>
+            ${it.time?`<div class="item-top"><span class="item-time">${fi('clock',11)} ${esc(it.time)}</span></div>`:''}
             <div class="item-name">${esc(it.name)}</div>
             ${it.note?`<div class="item-note">${esc(it.note)}</div>`:''}
             <div id="map-${it._id}"></div>
           </div>
-          <div class="item-side" onclick="event.stopPropagation()">
-            ${it.mapUrl||it.name?`<a class="mini-link" href="${esc(it.mapUrl||mapsSearchUrl(it.name))}" target="_blank">${fi('map-pin',11)} 地圖</a>`:''}
-            <a class="mini-link" href="#" onclick="itemMenu('${day._id}','${it._id}');return false;">${fi('edit-2',11)} 編輯</a>
+          <div class="item-side" onclick="event.stopPropagation()" style="flex-direction:column;align-items:stretch;gap:5px">
+            <div style="display:flex;justify-content:flex-end">${typePill(it.type)}</div>
+            <div style="display:flex;gap:4px;justify-content:flex-end">
+              ${it.mapUrl||it.name?`<a class="mini-link" style="padding:5px 7px" href="${esc(it.mapUrl||mapsSearchUrl(it.name))}" target="_blank">${fi('map-pin',13)}</a>`:''}
+              <a class="mini-link" style="padding:5px 7px" href="#" onclick="itemMenu('${day._id}','${it._id}');return false;">${fi('edit-2',13)}</a>
+            </div>
           </div>
         </div>`;
         if(ii<items.length-1){
           const nx=items[ii+1]; const md=MODES[it.transitMode]||MODES.transit;
           h+=`<div class="transit"><span>${fi(md[1],13)}</span>${it.transitMin?`<span>${esc(it.transitMin)} 分</span>`:''}
             <span class="tline"></span>
-            <a class="mini-link" style="background:none;padding:2px" href="${mapsDirUrl(it.mapUrl||it.name,nx.mapUrl||nx.name,it.transitMode)}" target="_blank">查路線</a></div>`;
+            <a class="mini-link" style="background:none;padding:2px" href="${getItemNavUrl(it,nx,it.transitMode)}" target="_blank">查路線</a></div>`;
         }
       });
       h+=`</div></div>`;
     }
   });
+  h+=`<div style="padding:10px 4px 4px"><button class="btn sm gray" style="width:100%;padding:10px;font-size:13px" onclick="addDay()">${fi('plus',14)} 新增天數</button></div>`;
   $('itin-wrap').innerHTML=h;
 }
 function toggleDay(id){ _openDays[id]=_openDays[id]===false?true:false; renderItin(); }
@@ -1016,7 +1025,7 @@ function getDragAfter(container,y){ const els=[...container.querySelectorAll('.i
 function dragEnd(){ if(!_drag)return; document.removeEventListener('pointermove',dragMove); _drag.el.classList.remove('dragging'); const ids=[..._drag.container.querySelectorAll('.item')].map(el=>el.dataset.id); const upd={}; ids.forEach((id,i)=>{upd[id+'/order']=i;}); fbUpdate('items/'+ACTIVE+'/'+_drag.dayId,upd); _drag=null; }
 
 /* ════════════ 收藏庫頁 ════════════ */
-let _placeFilter='all', _discQuery='', _discResults=[], _discCat='all', _discGeo=null;
+let _placeFilter='all', _placeQuery='', _discQuery='', _discResults=[], _discCat='all', _discGeo=null;
 function renderPlaces(){
   if(!ACTIVE){ $('places-wrap').innerHTML=`<div class="empty"><span class="big">${fi('bookmark',40)}</span>請先選一趟旅程</div>`; return; }
   const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k]));
@@ -1024,8 +1033,12 @@ function renderPlaces(){
   <div style="display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px">
     <button class="chip ${_placeFilter==='all'?'on':''}" onclick="_placeFilter='all';renderPlaces()">全部 ${all.length}</button>
     ${catArr().map(({k,lbl,icon})=>{const n=all.filter(p=>p.cat===k).length;return n?`<button class="chip ${_placeFilter===k?'on':''}" onclick="_placeFilter='${k}';renderPlaces()">${fi(icon,11)} ${lbl} ${n}</button>`:''}).join('')}
+  </div>
+  <div style="padding:0 0 10px">
+    <input id="place-search" class="tag-input" style="max-width:240px;font-size:13px;padding:6px 10px" placeholder="搜尋名稱或備註…" value="${esc(_placeQuery)}" oninput="_placeQuery=this.value;renderPlaces()">
   </div>`;
-  const list=all.filter(p=>_placeFilter==='all'||p.cat===_placeFilter).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const _pq=_placeQuery.toLowerCase();
+  const list=all.filter(p=>(_placeFilter==='all'||p.cat===_placeFilter)&&(!_pq||((p.name||'').toLowerCase().includes(_pq)||((p.note||'').toLowerCase().includes(_pq))))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(!list.length) h+=`<div class="empty"><span class="big">${fi('bookmark',40)}</span>還沒有收藏</div>`;
   else h+=list.map(p=>{const c=TYPES[p.cat]||TYPES.spot;
     return `<div class="card"><div class="place-row">
@@ -1043,6 +1056,7 @@ function renderPlaces(){
       </div></div>`;
   }).join('');
   $('places-wrap').innerHTML=h;
+  if(_placeQuery){const s=$('place-search');if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length);}}
 }
 function editPlace(id){
   const p=(id&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][id])||{};
@@ -1343,7 +1357,7 @@ function editMemo(id,sec){
   const curText=fmt==='checklist'&&m.items?m.items.map(it=>it.t).join('\n'):(m.text||'');
   modal(`<div class="modal-title">${id?'編輯':'新增'}備忘</div>
     <label class="fld">分類</label>
-    <div class="seg" id="m-sec">${Object.keys(SECT).map(k=>`<button data-v="${k}" class="${sec===k?'on':''}" onclick="segPick('m-sec','${k}')">${fi(SECT[k][1],12)} ${SECT[k][0]}</button>`).join('')}</div>
+    <div class="seg" id="m-sec">${Object.keys(SECT).map(k=>`<button data-v="${k}" class="${sec===k?'on':''}" onclick="segPick('m-sec','${k}')">${fi(SECT[k][1],12)} ${getSectLabel(k)}</button>`).join('')}</div>
     <label class="fld">顯示格式</label>
     <div class="seg" id="m-fmt">
       <button data-v="text" class="${fmt==='text'?'on':''}" onclick="segPick('m-fmt','text')">${fi('type',12)} 文字</button>
