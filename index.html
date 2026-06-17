@@ -21,6 +21,7 @@
   :root{
     --primary:#2e6b7a;--primary-light:#c6e4ed;--primary-dark:#1d5060;
     --accent:#2d9080;--accent2:#47b4a8;
+    --warm:#7c5cbf;--warm-light:#ede9f8;--warm-dark:#5b3fa8;
     --success:#10b981;--warning:#d97706;--danger:#dc2626;--danger-light:#fee2e2;
     --surface:#f5fbfc;--bg:#edf6f7;
     --border:#b8d4da;--border-light:#dceef3;
@@ -47,7 +48,7 @@
   .topbar-title{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;min-width:0}
   .topbar-title .tt-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-sub{font-size:11px;opacity:.85;margin-top:1px;font-weight:500}
-  .sync-badge{font-size:10px;opacity:.7;margin-top:1px}
+  .sync-badge{font-size:10px;opacity:.7;white-space:nowrap;text-align:right}
   .me-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
   .me-btn .me-dot{width:8px;height:8px;border-radius:50%;background:#a7f3d0}
 
@@ -86,12 +87,13 @@
   .t-food{background:#fff1f2;color:#be123c}
   .t-hotel{background:#ecfeff;color:#0e7490}
   .t-shop{background:#fff7ed;color:#c2410c}
-  .t-fun{background:#fdf4ff;color:#7e22ce}
+  .t-fun{background:var(--warm-light);color:var(--warm)}
   .t-other{background:#f5f3ff;color:#6d28d9}
 
   /* ── TRIP CARD ── */
   .trip-card{cursor:pointer;position:relative}
   .trip-cover{height:96px;background:linear-gradient(135deg,var(--primary),var(--accent2));display:flex;align-items:flex-end;padding:12px;color:#fff}
+  .trip-cover.alt{background:linear-gradient(135deg,var(--warm-dark),var(--warm))}
   .trip-cover .tc-name{font-size:18px;font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,.3)}
   .trip-meta{padding:10px 13px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);font-weight:600}
   .trip-card.active-trip{border:2px solid var(--primary)}
@@ -101,8 +103,8 @@
   .day-head .dh-l{display:flex;align-items:center;gap:9px}
   .day-head-a{background:#c6e4ed}
   .day-head-a .day-badge{background:#3d8fa3}
-  .day-head-b{background:#c2e9e0}
-  .day-head-b .day-badge{background:#2d9080}
+  .day-head-b{background:var(--warm-light)}
+  .day-head-b .day-badge{background:var(--warm)}
   .day-badge{color:#fff;font-weight:900;font-size:13px;padding:3px 10px;border-radius:8px}
   .day-date{font-size:11px;color:var(--text-secondary);font-weight:700}
   .item{display:flex;gap:9px;padding:11px 12px;position:relative}
@@ -131,7 +133,7 @@
   .flight-members{font-size:11px;color:var(--text-muted);margin-top:2px}
   .dir-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700}
   .dir-out{background:#dbeafe;color:#1d4ed8}
-  .dir-back{background:#fce7f3;color:#be185d}
+  .dir-back{background:var(--warm-light);color:var(--warm-dark)}
 
   /* ── place library ── */
   .place-row{display:flex;gap:10px;align-items:flex-start;padding:11px 12px}
@@ -165,7 +167,7 @@
   /* ── poll ── */
   .poll-opt{padding:10px 12px;border-bottom:1px solid var(--border-light)}
   .poll-bar-bg{height:8px;background:var(--border-light);border-radius:999px;overflow:hidden;margin-top:6px}
-  .poll-bar{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent2));border-radius:999px;transition:width .4s}
+  .poll-bar{height:100%;background:linear-gradient(90deg,var(--primary),var(--warm));border-radius:999px;transition:width .4s}
   .voters{font-size:10px;color:var(--text-muted);margin-top:4px}
 
   /* ── weather / fx ── */
@@ -272,9 +274,11 @@
       <div style="flex:1;min-width:0">
         <div class="topbar-title"><span class="tt-name" id="tb-title">旅遊行程</span></div>
         <div class="topbar-sub" id="tb-sub">一起規劃完美旅程</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <button class="me-btn" id="me-btn" onclick="openMe()"><span class="me-dot"></span><span id="me-name">身分</span></button>
         <div class="sync-badge" id="tb-sync"></div>
       </div>
-      <button class="me-btn" id="me-btn" onclick="openMe()"><span class="me-dot"></span><span id="me-name">身分</span></button>
     </div>
   </div>
 
@@ -669,11 +673,11 @@ function renderTrips(){
   const arr=Object.keys(trips).map(k=>Object.assign({_id:k},trips[k])).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">${fi('compass',15)} 我的旅程</div><button class="btn sm" onclick="editTrip()">${fi('plus',13)} 新增</button></div><div style="height:10px"></div>`;
   if(!arr.length) h+=`<div class="empty"><span class="big">✈️</span>還沒有旅程<br>點右下角 ＋ 建立第一趟旅程！</div>`;
-  else h+=arr.map(t=>{
+  else h+=arr.map((t,i)=>{
     const days=DATA.days&&DATA.days[t._id]?Object.keys(DATA.days[t._id]).length:0;
     const act=t._id===ACTIVE?'active-trip':'';
     return `<div class="card trip-card ${act}" onclick="selectTrip('${t._id}')">
-      <div class="trip-cover" style="${t.color?'background:'+t.color:''}">
+      <div class="trip-cover${i%2===1?' alt':''}" style="${t.color?'background:'+t.color:''}">
         <div style="flex:1"><div class="tc-name">${esc(t.name)}</div></div>
         <button class="dot-menu-btn" style="color:#fff" onclick="event.stopPropagation();tripMenu('${t._id}')">${fi('more-horizontal',18)}</button>
       </div>
@@ -1037,7 +1041,6 @@ function renderPlaces(){
         <a class="mini-link" href="#" onclick="editPlace('${p._id}');return false;">${fi('edit-2',11)} 編輯</a>
       </div></div>`;
   }).join('');
-  h+=renderDiscoverSection();
   $('places-wrap').innerHTML=h;
 }
 function editPlace(id){
