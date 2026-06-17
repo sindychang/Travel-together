@@ -852,7 +852,8 @@ function renderItin(){
       <div class="dh-l"><span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
       <span class="day-date">${day.date?fmtDate(day.date):'未設定日期'}</span></div>
       <div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--text-muted);font-weight:700">${items.length}項</span>
-      <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
+      ${items.length>=2?`<button class="btn sm" style="padding:3px 8px;font-size:10px;background:var(--warm);color:#fff;border-radius:6px;border:none" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 路線</button>`:''}
+  <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
       <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span></div></div>`;
     if(open){
       h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
@@ -1623,6 +1624,34 @@ function exportPDF(){
   if(memos.length){ h+=`<hr><h2>📝 備忘</h2>`; Object.keys(SECT).forEach(sec=>{const ms=memos.filter(m=>m.section===sec);if(ms.length){h+=`<b>${SECT[sec][1]} ${SECT[sec][0]}</b><ul style="margin:4px 0">`+ms.map(m=>`<li>${esc(m.text)}${m.url?' ('+esc(m.url)+')':''}</li>`).join('')+`</ul>`;}}); }
   $('print-area').innerHTML=h;
   setTimeout(()=>{ window.print(); },200);
+}
+
+/* ════════════ Google Maps 路線 ════════════ */
+function extractCoordsFromUrl(url){
+  if(!url) return null;
+  const m1=url.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m1) return {lat:parseFloat(m1[1]),lng:parseFloat(m1[2])};
+  const m2=url.match(/[?&]q=(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m2) return {lat:parseFloat(m2[1]),lng:parseFloat(m2[2])};
+  const m3=url.match(/maps\/place\/[^/]+\/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m3) return {lat:parseFloat(m3[1]),lng:parseFloat(m3[2])};
+  return null;
+}
+function openDayRoute(dayId){
+  const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId],'order').filter(it=>it.name);
+  if(items.length<2){toast('至少需要 2 個景點才能建立路線');return;}
+  const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+  const getPoint=(item)=>{
+    const c=extractCoordsFromUrl(item.mapUrl||'');
+    if(c) return c.lat+','+c.lng;
+    return encodeURIComponent((item.name||'')+(dest?' '+dest:''));
+  };
+  const pts=items.map(getPoint);
+  const origin=pts[0],destination=pts[pts.length-1];
+  const mid=pts.slice(1,-1).slice(0,7);
+  let url='https://www.google.com/maps/dir/?api=1&origin='+origin+'&destination='+destination+'&travelmode=transit';
+  if(mid.length) url+='&waypoints='+mid.join('|');
+  window.open(url,'_blank');
 }
 
 /* ════════════════ 啟動 ════════════════ */
