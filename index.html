@@ -182,8 +182,9 @@
   .modal-x:hover{background:var(--border-light);color:var(--text-primary)}
   .modal-title{font-size:17px;font-weight:900;margin-bottom:4px;padding-right:32px}
   .modal-acts{display:flex;gap:8px;margin-top:18px}
-  .seg{display:flex;gap:5px;background:var(--border-light);border-radius:10px;padding:4px;flex-wrap:wrap}
-  .seg button{flex:1;min-width:60px;padding:8px 4px;border-radius:7px;border:none;background:none;font-size:12px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;justify-content:center;gap:4px}
+  .seg{display:flex;gap:5px;background:var(--border-light);border-radius:10px;padding:4px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{flex:1;min-width:56px;white-space:nowrap;padding:8px 6px;border-radius:7px;border:none;background:none;font-size:12px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0}
   .seg button.on{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
 
   /* ── lock / role ── */
@@ -897,28 +898,40 @@ function dayMenu(id){
 function saveDayMeta(id){ fbUpdate('days/'+ACTIVE+'/'+id,{label:$('d-label').value.trim(),date:$('d-date').value}); closeModal(); toast('已更新'); }
 
 /* 班機 */
+let _flightMembers=[];
+function toggleFlightMember(name,btn){
+  const idx=_flightMembers.indexOf(name);
+  if(idx>=0) _flightMembers.splice(idx,1); else _flightMembers.push(name);
+  btn.classList.toggle('on');
+}
 function editFlight(id){
   const f=(id&&DATA.flights&&DATA.flights[ACTIVE]&&DATA.flights[ACTIVE][id])||{};
-  const roles=roleList().map(([n])=>n);
+  const existMem=f.members?f.members.split(',').map(s=>s.trim()).filter(Boolean):[];
+  _flightMembers=[...existMem];
+  const _roles=Object.values(tripRoles(ACTIVE));
+  const memberChips=_roles.length
+    ?_roles.map(r=>`<button class="chip${_flightMembers.includes(r.name)?' on':''}" style="margin:3px 3px 3px 0" onclick="toggleFlightMember('${esc(r.name).replace(/'/g,'\\&#39;')}',this)">${r.emoji||'😎'} ${esc(r.name)}</button>`).join('')
+    :`<span style="font-size:12px;color:var(--text-muted)">尚無成員，請先到工具頁新增</span>`;
   modal(`<div class="modal-title">✈️ ${id?'編輯':'新增'}班機</div>
     <label class="fld">航班號碼（例：CI101、JL823）</label><input class="tag-input" id="fl-no" value="${esc(f.flightNo||'')}">
-    <div style="display:flex;gap:10px">
-      <div style="flex:1"><label class="fld">出發日期</label><input type="date" class="tag-input" id="fl-dd" value="${esc(f.depDate||'')}" onchange="if($('fl-sameday')?.checked)$('fl-ad').value=this.value"></div>
-      <div style="flex:1">
-        <label class="fld" style="display:flex;align-items:center;justify-content:space-between">抵達日期
-          <label style="font-weight:400;font-size:11px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;gap:4px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px"><label class="fld">出發日期</label><input type="date" class="tag-input" id="fl-dd" value="${esc(f.depDate||'')}" onchange="if($('fl-sameday')?.checked)$('fl-ad').value=this.value"></div>
+      <div style="flex:1;min-width:140px">
+        <label class="fld" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <span>抵達日期</span>
+          <label style="font-weight:400;font-size:11px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;gap:4px;white-space:nowrap">
             <input type="checkbox" id="fl-sameday" ${f.arrDate&&f.arrDate===f.depDate?'checked':''} onchange="const a=$('fl-ad');a.disabled=this.checked;if(this.checked)a.value=$('fl-dd').value"> 同出發日
           </label>
         </label>
         <input type="date" class="tag-input" id="fl-ad" value="${esc(f.arrDate||'')}" ${f.arrDate&&f.arrDate===f.depDate?'disabled':''}>
       </div>
     </div>
-    <div style="display:flex;gap:10px">
-      <div style="flex:1"><label class="fld">出發時間</label><input type="time" class="tag-input" id="fl-dt" value="${esc(f.depTime||'')}"></div>
-      <div style="flex:1"><label class="fld">抵達時間</label><input type="time" class="tag-input" id="fl-at" value="${esc(f.arrTime||'')}"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px"><label class="fld">出發時間</label><input type="time" class="tag-input" id="fl-dt" value="${esc(f.depTime||'')}"></div>
+      <div style="flex:1;min-width:120px"><label class="fld">抵達時間</label><input type="time" class="tag-input" id="fl-at" value="${esc(f.arrTime||'')}"></div>
     </div>
-    <label class="fld">搭乘成員（可複選，以逗號隔開）</label>
-    <input class="tag-input" id="fl-mem" placeholder="${roles.join('、')}" value="${esc(f.members||'')}">
+    <label class="fld">搭乘成員（點選）</label>
+    <div style="display:flex;flex-wrap:wrap;gap:0;padding:4px 0">${memberChips}</div>
     <label class="fld">備註（機場、航廈等）</label><input class="tag-input" id="fl-note" value="${esc(f.note||'')}">
     <label class="fld">班機類型</label>
     <div id="fl-dir" style="display:flex;gap:8px">
@@ -932,7 +945,7 @@ function saveFlight(id){
   const flightNo=$('fl-no').value.trim();
   if(!flightNo){toast('請輸入航班號碼');return;}
   const direction=_seg['fl-dir']||(document.querySelector('#fl-dir button.on')?.dataset.v||'out');
-  const obj={flightNo,direction,depDate:$('fl-dd').value,arrDate:$('fl-ad').value,depTime:$('fl-dt').value,arrTime:$('fl-at').value,members:$('fl-mem').value.trim(),note:$('fl-note').value.trim(),updatedBy:ME,updatedAt:Date.now()};
+  const obj={flightNo,direction,depDate:$('fl-dd').value,arrDate:$('fl-ad').value,depTime:$('fl-dt').value,arrTime:$('fl-at').value,members:_flightMembers.join(', '),note:$('fl-note').value.trim(),updatedBy:ME,updatedAt:Date.now()};
   if(!id){ id=uid(); obj.createdAt=Date.now(); fbSet('flights/'+ACTIVE+'/'+id,obj); }
   else fbUpdate('flights/'+ACTIVE+'/'+id,obj);
   closeModal(); toast('已儲存');
@@ -954,12 +967,12 @@ function editItem(dayId,itId){
     <div class="seg" id="it-type">${catArr().map(({k,lbl,icon,cls})=>`<button data-v="${k}" class="${(it.type||'spot')===k?'on':''}" onclick="segPick('it-type','${k}')">${fi(icon,13)} ${lbl}</button>`).join('')}</div>
     <label class="fld">名稱</label><input class="tag-input" id="it-name" placeholder="例：淺草寺" value="${esc(it.name||'')}">
     <label class="fld">日期</label><select class="tag-input" id="it-day">${dayOpts}</select>
-    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">時間</label><input type="time" class="tag-input" id="it-time" value="${esc(it.time||'')}"></div>
-    <div style="flex:1"><label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:1;min-width:120px"><label class="fld">時間</label><input type="time" class="tag-input" id="it-time" value="${esc(it.time||'')}"></div>
+    <div style="flex:2;min-width:160px"><label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}"></div></div>
     <label class="fld">備註</label><textarea class="tag-input" id="it-note">${esc(it.note||'')}</textarea>
-    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fld">到下一站交通</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:2;min-width:140px"><label class="fld">到下一站交通</label>
       <select class="tag-input" id="it-mode">${Object.keys(MODES).map(k=>`<option value="${k}" ${(it.transitMode||'transit')===k?'selected':''}>${MODES[k][0]}</option>`).join('')}</select></div>
-    <div style="flex:1"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="20" value="${esc(it.transitMin||'')}"></div></div>
+    <div style="flex:1;min-width:100px"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="20" value="${esc(it.transitMin||'')}"></div></div>
     <div class="modal-acts">${itId?`<button class="btn danger" onclick="confirmDel('刪除此項目？',()=>{fbRemove('items/${ACTIVE}/${dayId}/${itId}');closeModal()})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveItem('${dayId}','${itId||''}')">儲存</button></div>`);
 }
@@ -1449,17 +1462,17 @@ function editPoll(id){
   modal(`<div class="modal-title">${fi('bar-chart-2',15)} ${id?'編輯':'發起'}投票</div>
     <label class="fld">主題</label><input class="tag-input" id="pq-title" value="${esc(p.title||'')}" placeholder="例：住宿要選哪間？">
     <label class="fld">投票設定</label>
-    <div style="display:flex;gap:8px">
-      <div class="seg" id="pq-vtype" style="flex:1">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="seg" id="pq-vtype" style="flex:1;min-width:130px">
         <button data-v="named" class="${(p.voteType||'named')==='named'?'on':''}" onclick="segPick('pq-vtype','named')">👤 實名</button>
         <button data-v="anonymous" class="${p.voteType==='anonymous'?'on':''}" onclick="segPick('pq-vtype','anonymous')">🕵️ 匿名</button>
       </div>
-      <div class="seg" id="pq-stype" style="flex:1">
+      <div class="seg" id="pq-stype" style="flex:1;min-width:130px">
         <button data-v="single" class="${(p.selType||'single')==='single'?'on':''}" onclick="segPick('pq-stype','single')">☝️ 單選</button>
         <button data-v="multi" class="${p.selType==='multi'?'on':''}" onclick="segPick('pq-stype','multi')">☑️ 複選</button>
       </div>
     </div>
-    <label class="fld">截止日期（選填）</label><input type="date" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}">
+    <label class="fld">截止日期（選填）</label><input type="date" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}" style="max-width:100%">
     <label class="fld">選項</label>
     <div id="pq-opts-list">${rows.map((o,i)=>renderPollOptRow(o.text||'',o.note||'',o.url||'',i)).join('')}</div>
     <button class="btn ghost sm" style="width:100%;margin-top:4px" onclick="addPollOptRow()">${fi('plus',12)} 新增選項</button>
