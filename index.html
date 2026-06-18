@@ -1571,9 +1571,9 @@ function doAddRoleWithEmoji(){
 }
 
 /* 投票（仍保留函式供 memo 頁使用） */
-function renderPollOptRow(text,note,url,idx){
+function renderPollOptRow(text,note,url,idx,optId=''){
   const lbl=idx!==undefined?`選項${idx+1}`:'選項';
-  return `<div class="poll-opt-row" style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+  return `<div class="poll-opt-row" data-opt-id="${optId}" style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <span style="font-size:11px;font-weight:700;color:var(--text-secondary)">${lbl}</span>
       <button onclick="this.closest('.poll-opt-row').remove()" style="background:none;border:none;color:var(--text-muted);padding:2px;cursor:pointer;line-height:1">${fi('x',13)}</button>
@@ -1592,7 +1592,7 @@ function addPollOptRow(){
 }
 function editPoll(id){
   const p=(id&&DATA.polls&&DATA.polls[ACTIVE]&&DATA.polls[ACTIVE][id])||{};
-  const existOpts=id?Object.keys(p.options||{}).map(k=>({...p.options[k]})):[];
+  const existOpts=id?Object.keys(p.options||{}).map(k=>({_id:k,...p.options[k]})):[];
   const rows=existOpts.length>=2?existOpts:[{text:'',note:'',url:''},{text:'',note:'',url:''}];
   modal(`<div class="modal-title">${fi('bar-chart-2',15)} ${id?'編輯':'發起'}投票</div>
     <label class="fld">主題</label><input class="tag-input" id="pq-title" value="${esc(p.title||'')}" placeholder="例：住宿要選哪間？">
@@ -1609,7 +1609,7 @@ function editPoll(id){
     </div>
     <label class="fld">截止日期（選填）</label><input type="date" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}" style="max-width:100%">
     <label class="fld">選項</label>
-    <div id="pq-opts-list">${rows.map((o,i)=>renderPollOptRow(o.text||'',o.note||'',o.url||'',i)).join('')}</div>
+    <div id="pq-opts-list">${rows.map((o,i)=>renderPollOptRow(o.text||'',o.note||'',o.url||'',i,o._id||'')).join('')}</div>
     <button class="btn ghost sm" style="width:100%;margin-top:4px" onclick="addPollOptRow()">${fi('plus',12)} 新增選項</button>
     <div class="modal-acts"><button class="btn gray" onclick="closeModal()">取消</button><button class="btn" style="flex:2" onclick="savePoll('${id||''}')">發起</button></div>`);
 }
@@ -1619,7 +1619,7 @@ function savePoll(id){
   const selType=_seg['pq-stype']||(document.querySelector('#pq-stype button.on')?.dataset.v||'single');
   const rows=document.querySelectorAll('#pq-opts-list .poll-opt-row');
   const options={};let valid=0;
-  rows.forEach(row=>{const text=row.querySelector('.por-text').value.trim(); if(text){options[uid()]={text,note:row.querySelector('.por-note').value.trim(),url:row.querySelector('.por-url').value.trim(),votes:{}};valid++;}});
+  rows.forEach(row=>{const text=row.querySelector('.por-text').value.trim(); if(text){const optId=row.dataset.optId||uid();const existVotes=(id&&DATA.polls&&DATA.polls[ACTIVE]&&DATA.polls[ACTIVE][id]&&DATA.polls[ACTIVE][id].options&&DATA.polls[ACTIVE][id].options[optId]&&DATA.polls[ACTIVE][id].options[optId].votes)||{};options[optId]={text,note:row.querySelector('.por-note').value.trim(),url:row.querySelector('.por-url').value.trim(),votes:existVotes};valid++;}});
   if(valid<2){toast('至少兩個有效選項');return;}
   if(id) fbUpdate('polls/'+ACTIVE+'/'+id,{title,voteType,selType,dueDate:$('pq-due').value,options});
   else fbSet('polls/'+ACTIVE+'/'+uid(),{title,voteType,selType,by:ME,dueDate:$('pq-due').value,createdAt:Date.now(),options});
