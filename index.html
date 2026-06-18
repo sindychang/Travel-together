@@ -294,6 +294,7 @@
   <div id="page-tools"  class="page"><div class="wrap" id="tools-wrap"></div></div>
 
   <input type="file" id="import-json-input" accept=".json" style="display:none" onchange="importData(event)">
+  <input type="file" id="restore-snapshot-input" accept=".json" style="display:none" onchange="restoreSnapshot(event)">
   <button class="fab hidden" id="fab" onclick="fabAction()"></button>
   <div class="nav" id="nav"></div>
   <div class="modal-bg" id="modal-bg"><div class="modal" id="modal"></div></div>
@@ -383,6 +384,85 @@ function getLatestTs(data){
   function walk(o){ if(!o||typeof o!=='object') return; Object.values(o).forEach(v=>{ if(typeof v==='number'&&v>1_000_000_000_000&&v>max) max=v; else walk(v); }); }
   walk(data); return max||null;
 }
+function getLatestEditor(data){
+  let maxTs=0,editor='';
+  function walk(o){ if(!o||typeof o!=='object') return; if(o.updatedBy&&o.updatedAt&&o.updatedAt>maxTs){maxTs=o.updatedAt;editor=o.updatedBy;} Object.values(o).forEach(v=>{if(typeof v==='object')walk(v);}); }
+  walk(data); return editor||'不明';
+}
+
+/* ── 修改紀錄 ── */
+function logChange(action,detail){
+  if(!ACTIVE||!db||!ME) return;
+  ref('changelog/'+ACTIVE+'/'+uid()).set({who:ME,when:Date.now(),action,detail:detail||''}).catch(()=>{});
+}
+
+/* ── 自動版本快照（每次儲存前建立，最多保留5份）── */
+function autoSnapshot(action){
+  if(!ACTIVE||!db) return;
+  const snapData={};
+  ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
+    if(DATA[k]&&DATA[k][ACTIVE]) snapData[k]={[ACTIVE]:JSON.parse(JSON.stringify(DATA[k][ACTIVE]))};
+  });
+  const entry={at:Date.now(),who:ME||'匿名',action,data:snapData};
+  ref('snapshots/'+ACTIVE+'/'+uid()).set(entry).then(()=>{
+    ref('snapshots/'+ACTIVE).orderByChild('at').once('value').then(s=>{
+      const keys=[];
+      s.forEach(c=>keys.push(c.key));
+      if(keys.length>5) keys.slice(0,keys.length-5).forEach(k=>ref('snapshots/'+ACTIVE+'/'+k).remove().catch(()=>{}));
+    }).catch(()=>{});
+  }).catch(()=>{});
+}
+function loadSnapshots(){
+  const box=$('snapshots-content'); if(!box) return;
+  if(!db){box.innerHTML='<div style="color:var(--text-muted);font-size:12px">需連線才能查看</div>';return;}
+  ref('snapshots/'+ACTIVE).orderByChild('at').limitToLast(5).once('value').then(s=>{
+    const entries=[];
+    s.forEach(c=>entries.push({k:c.key,...c.val()}));
+    entries.reverse();
+    if(!entries.length){box.innerHTML='<div style="color:var(--text-muted);font-size:12px">尚無版本快照<br><span style="font-size:11px">每次儲存時會自動建立</span></div>';return;}
+    const fmtTs=ts=>{const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');};
+    box.innerHTML=entries.map((e,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px"><span style="font-weight:700;color:var(--primary)">${esc(e.who||'?')}</span>・${esc(e.action||'')}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${fmtTs(e.at)}${i===0?' 〔最新〕':''}</div>
+      </div>
+      <button class="btn sm ghost" style="flex-shrink:0" onclick="restoreAutoSnapshot('${e.k}')">${fi('rotate-ccw',11)} 還原</button>
+    </div>`).join('');
+  }).catch(()=>{box.innerHTML='<div style="color:var(--text-muted);font-size:12px">載入失敗</div>';});
+}
+function restoreAutoSnapshot(snapId){
+  if(!db||!ACTIVE){toast('需連線才能還原');return;}
+  ref('snapshots/'+ACTIVE+'/'+snapId).once('value').then(s=>{
+    const snap=s.val(); if(!snap||!snap.data){toast('快照資料不完整');return;}
+    const atStr=new Date(snap.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    appConfirm(`還原到「${esc(snap.who)}」在 ${atStr} 儲存前的版本？\n目前資料將被覆蓋。`,()=>{
+      autoSnapshot('還原操作前的備份');
+      ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
+        if(snap.data[k]){
+          if(!DATA[k])DATA[k]={};
+          Object.assign(DATA[k],snap.data[k]);
+          if(db) Object.keys(snap.data[k]).forEach(tid=>ref(k+'/'+tid).set(snap.data[k][tid]).catch(()=>{}));
+        }
+      });
+      saveData(); renderAll(); toast('已還原！');
+    });
+  }).catch(()=>toast('還原失敗，請確認網路連線'));
+}
+
+function loadChangelog(){
+  const box=$('changelog-content'); if(!box) return;
+  if(!db){ box.innerHTML='<div style="color:var(--text-muted);font-size:12px">需連線才能查看紀錄</div>'; return; }
+  ref('changelog/'+ACTIVE).orderByChild('when').limitToLast(30).once('value').then(snap=>{
+    const entries=[];
+    snap.forEach(c=>entries.push(c.val()));
+    entries.reverse();
+    if(!entries.length){box.innerHTML='<div style="color:var(--text-muted);font-size:12px">尚無修改紀錄</div>';return;}
+    const fmtTs=ts=>{const diff=Date.now()-ts;if(diff<60000)return '剛剛';if(diff<3600000)return Math.floor(diff/60000)+'分鐘前';if(diff<86400000)return Math.floor(diff/3600000)+'小時前';const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');};
+    box.innerHTML=entries.map(e=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)">
+      <div style="flex:1;min-width:0"><span style="font-weight:700;color:var(--primary);font-size:12px">${esc(e.who||'?')}</span><span style="font-size:12px;color:var(--text-primary)"> ${esc(e.action||'')}</span>${e.detail?`<div style="font-size:11px;color:var(--text-muted);margin-top:1px">${esc(String(e.detail).slice(0,40))}</div>`:''}</div>
+      <div style="font-size:10px;color:var(--text-muted);white-space:nowrap;flex-shrink:0">${fmtTs(e.when)}</div></div>`).join('');
+  }).catch(()=>{box.innerHTML='<div style="color:var(--text-muted);font-size:12px">載入失敗</div>';});
+}
 
 function startSync(){
   loadData(); renderAll();
@@ -422,24 +502,23 @@ function showSyncConflict(local,fb,onDone){
   _conflictLocal=local; _conflictFb=fb; _conflictDone=onDone;
   const lTrips=Object.keys(local.trips||{}).length, fTrips=Object.keys(fb.trips||{}).length;
   const lts=getLatestTs(local), fts=getLatestTs(fb);
+  const lEditor=getLatestEditor(local), fEditor=getLatestEditor(fb);
   const fmt=ts=>ts?new Date(ts).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'不明';
   const bg=$('cdialog-bg'),bx=$('cdialog');
   bx.innerHTML=`<div class="cdialog-title">${fi('alert-triangle',15)} 發現資料衝突</div>
-    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.6">本機與雲端資料不一致，請選擇要保留哪個版本：</p>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.6">本機與雲端資料不同，請選擇要保留哪個版本：</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
       <div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">
         <div style="font-size:22px;margin-bottom:4px">📱</div>
-        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px">本機版本</div>
-        <div style="font-weight:900;font-size:20px;color:var(--primary)">${lTrips}</div>
-        <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">趟旅程</div>
-        <div style="font-size:10px;color:var(--text-muted)">最後修改<br>${fmt(lts)}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:4px">本機版本</div>
+        ${lEditor!=='不明'?`<div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:4px">${esc(lEditor)}</div>`:''}
+        <div style="font-size:10px;color:var(--text-muted)">${fmt(lts)}</div>
       </div>
       <div style="background:var(--bg);border-radius:10px;padding:12px;text-align:center">
         <div style="font-size:22px;margin-bottom:4px">☁️</div>
-        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px">雲端版本</div>
-        <div style="font-weight:900;font-size:20px;color:var(--primary)">${fTrips}</div>
-        <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">趟旅程</div>
-        <div style="font-size:10px;color:var(--text-muted)">最後修改<br>${fmt(fts)}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:4px">雲端版本</div>
+        ${fEditor!=='不明'?`<div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:4px">${esc(fEditor)}</div>`:''}
+        <div style="font-size:10px;color:var(--text-muted)">${fmt(fts)}</div>
       </div>
     </div>
     <button class="btn full" style="margin-bottom:8px" onclick="conflictChoose('local')">📱 保留本機版本（覆蓋雲端）</button>
@@ -854,12 +933,14 @@ function calPickTrip(ds){
 }
 function saveTrip(id){
   const name=$('f-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  if(id) autoSnapshot('編輯旅程');
   const type=_seg['trip-type-seg']||(document.querySelector('#trip-type-seg button.on')?.dataset.v)||'international';
   const inviteCode=($('f-code').value||'').trim().toUpperCase();
   const obj={name,type,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase(),inviteCode,updatedBy:ME,updatedAt:Date.now()};
   const isNew=!id;
   if(isNew){ id=uid(); obj.createdAt=Date.now(); fbSet('trips/'+id,obj); autoCreateDays(id,obj.startDate,obj.endDate); ACTIVE=id; localStorage.setItem('tv_trip',id); syncMe(); unlockTrip(id); }
   else { fbUpdate('trips/'+id,obj); if(inviteCode) unlockTrip(id); }
+  logChange(isNew?'新增旅程':'編輯旅程',name);
   closeModal(); toast('已儲存');
   if(isNew){ go('itin'); setTimeout(()=>{ if(!ME) showRolePicker(id); },400); }
 }
@@ -1056,6 +1137,7 @@ let _seg={};
 function segPick(group,v){ _seg[group]=v; document.querySelectorAll('#'+group+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
 function saveItem(dayId,itId){
   const name=$('it-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  autoSnapshot(itId?'編輯行程項目':'新增行程項目');
   const saveToFav=document.getElementById('it-save-places')?.checked;
   const targetDay=$('it-day').value;
   const type=_seg['it-type']||(document.querySelector('#it-type button.on')?.dataset.v||'spot');
@@ -1084,6 +1166,7 @@ function saveItem(dayId,itId){
       fbRemove('items/'+ACTIVE+'/'+dayId+'/'+itId); fbSet('items/'+ACTIVE+'/'+targetDay+'/'+itId,obj);
     } else { obj.order=(DATA.items[ACTIVE][dayId]&&DATA.items[ACTIVE][dayId][itId]?.order)||0; fbUpdate('items/'+ACTIVE+'/'+dayId+'/'+itId,obj); }
   }
+  logChange(itId?'編輯行程項目':'新增行程項目',name);
   _seg={}; closeModal(); toast(saveToFav?'已儲存並加入收藏 🔖':'已儲存');
 }
 function itemMenu(dayId,itId){ editItem(dayId,itId); }
@@ -1195,6 +1278,7 @@ function editPlace(id){
 }
 function savePlace(id){
   const name=$('pl-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  autoSnapshot(id?'編輯收藏':'新增收藏');
   const cat=_seg['pl-cat']||(document.querySelector('#pl-cat button.on')?.dataset.v||'spot');
   const rating=parseInt(_seg['pl-rate']||(document.querySelector('#pl-rate button.on')?.dataset.v||0))||0;
   const obj={cat,name,area:$('pl-area').value.trim(),mapUrl:$('pl-map').value.trim(),note:$('pl-note').value.trim(),link:$('pl-link').value.trim(),rating,updatedBy:ME,updatedAt:Date.now()};
@@ -1208,6 +1292,7 @@ function savePlace(id){
       });
     });
   }
+  logChange(id?'編輯收藏':'新增收藏',name);
   _seg={}; closeModal(); toast('已儲存');
 }
 function addPlaceToItin(id){
@@ -1494,12 +1579,14 @@ function editMemo(id,sec){
 }
 function saveMemo(id){
   const text=$('m-text').value.trim(); const url=$('m-url').value.trim(); if(!text&&!url){toast('請輸入內容');return;}
+  autoSnapshot(id?'編輯備忘':'新增備忘');
   const section=_seg['m-sec']||(document.querySelector('#m-sec button.on')?.dataset.v||'need');
   const format=_seg['m-fmt']||(document.querySelector('#m-fmt button.on')?.dataset.v||'text');
   const obj={section,text:text||url,url,by:ME,format,dueDate:$('m-due').value,updatedBy:ME,updatedAt:Date.now()};
   if(format==='checklist'){ obj.items=text.split('\n').filter(Boolean).map(t=>({t,d:false})); }
   if(!id){ const cur=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).filter(k=>DATA.memos[ACTIVE][k].section===section).length; obj.order=cur; obj.done=false; obj.createdAt=Date.now(); fbSet('memos/'+ACTIVE+'/'+uid(),obj); }
   else fbUpdate('memos/'+ACTIVE+'/'+id,obj);
+  logChange(id?'編輯備忘':'新增備忘',(text||url).slice(0,30));
   _seg={}; closeModal(); toast('已儲存');
 }
 
@@ -1533,13 +1620,27 @@ function renderTools(){
     </div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('database',13)} 資料備份與還原</div>
     <div class="card" style="padding:14px">
-      <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.7">將所有旅程的完整資料（行程、收藏、待辦、備忘錄）匯出為 <b>.json</b> 備份檔。換設備、清除快取、或分享給同行者時可用來還原。</p>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.7"><b>快照</b>：僅備份目前這趟旅程，可還原回特定時間點。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn" style="flex:1;min-width:120px" onclick="snapshotTrip()">${fi('camera',14)} 備份此旅程快照</button>
+        <button class="btn ghost" style="flex:1;min-width:120px" onclick="document.getElementById('restore-snapshot-input').click()">${fi('rotate-ccw',14)} 還原快照</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0 10px;line-height:1.7;border-top:1px solid var(--border-light);padding-top:10px"><b>完整備份</b>：匯出所有旅程資料（換裝置用）。</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" style="flex:1;min-width:120px" onclick="exportData()">${fi('download',14)} 匯出備份</button>
-        <button class="btn ghost" style="flex:1;min-width:120px" onclick="document.getElementById('import-json-input').click()">${fi('upload',14)} 匯入還原</button>
+        <button class="btn ghost sm" style="flex:1;min-width:120px" onclick="exportData()">${fi('download',14)} 匯出全部備份</button>
+        <button class="btn ghost sm" style="flex:1;min-width:120px" onclick="document.getElementById('import-json-input').click()">${fi('upload',14)} 匯入還原（全部）</button>
       </div>
     </div>`;
-  $('tools-wrap').innerHTML=h; doFx();
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('rotate-ccw',13)} 版本紀錄（最近 5 份）</div>
+    <div class="card" style="padding:12px">
+      <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;line-height:1.6">每次儲存時自動建立快照，可隨時還原到任意版本。</p>
+      <div id="snapshots-content"><div style="color:var(--text-muted);font-size:12px">載入中…</div></div>
+    </div>`;
+  h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('clock',13)} 修改紀錄（最近 30 筆）</div>
+    <div class="card" style="padding:12px">
+      <div id="changelog-content"><div style="color:var(--text-muted);font-size:12px">載入中…</div></div>
+    </div>`;
+  $('tools-wrap').innerHTML=h; doFx(); loadSnapshots(); loadChangelog();
 }
 function toolsAddRole(){
   const n=$('role-add-name')?.value.trim(); if(!n)return;
@@ -1620,6 +1721,7 @@ function editPoll(id){
 }
 function savePoll(id){
   const title=$('pq-title').value.trim(); if(!title){toast('請輸入主題');return;}
+  autoSnapshot(id?'編輯投票':'新增投票');
   const voteType=_seg['pq-vtype']||(document.querySelector('#pq-vtype button.on')?.dataset.v||'named');
   const selType=_seg['pq-stype']||(document.querySelector('#pq-stype button.on')?.dataset.v||'single');
   const rows=document.querySelectorAll('#pq-opts-list .poll-opt-row');
@@ -1628,6 +1730,7 @@ function savePoll(id){
   if(valid<2){toast('至少兩個有效選項');return;}
   if(id) fbUpdate('polls/'+ACTIVE+'/'+id,{title,voteType,selType,dueDate:$('pq-due').value,options});
   else fbSet('polls/'+ACTIVE+'/'+uid(),{title,voteType,selType,by:ME,dueDate:$('pq-due').value,createdAt:Date.now(),options});
+  logChange(id?'編輯投票':'新增投票',title);
   closeModal(); toast(id?'已更新':'已發起');
 }
 function editPollOpt(pollId,optId){
@@ -1680,6 +1783,46 @@ function addPollOpt(pollId){
 }
 
 /* ── 備份/還原 ── */
+function snapshotTrip(){
+  if(!ACTIVE){toast('請先選一趟旅程');return;}
+  const tripName=(DATA.trips&&DATA.trips[ACTIVE]?.name)||ACTIVE;
+  const date=new Date().toISOString().replace('T','_').slice(0,16);
+  const snap={_snapshotMeta:{tripId:ACTIVE,tripName,at:Date.now()}};
+  ['trips','days','items','places','memos','todos','polls','flights','roles'].forEach(k=>{
+    if(DATA[k]&&DATA[k][ACTIVE]) snap[k]={[ACTIVE]:JSON.parse(JSON.stringify(DATA[k][ACTIVE]))};
+  });
+  if(DATA.trips&&DATA.trips[ACTIVE]) snap.trips={[ACTIVE]:DATA.trips[ACTIVE]};
+  const filename=('snapshot_'+tripName+'_'+date+'.json').replace(/[^\w.\-一-鿿]/g,'_');
+  const blob=new Blob([JSON.stringify(snap,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  toast('快照已下載：'+filename);
+}
+function restoreSnapshot(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const snap=JSON.parse(e.target.result);
+      if(typeof snap!=='object'||Array.isArray(snap))throw new Error();
+      const meta=snap._snapshotMeta||{};
+      const label=meta.tripName?`「${meta.tripName}」`:'此旅程';
+      const atStr=meta.at?new Date(meta.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+      appConfirm(`確認還原${label}快照？${atStr?'\n時間：'+atStr:''}\n目前資料將被覆蓋，建議先備份。`,()=>{
+        ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
+          if(snap[k]){
+            if(!DATA[k])DATA[k]={};
+            Object.assign(DATA[k],snap[k]);
+            if(db) Object.keys(snap[k]).forEach(tid=>ref(k+'/'+tid).set(snap[k][tid]).catch(()=>{}));
+          }
+        });
+        saveData();renderAll();toast('快照還原成功！');
+      });
+    }catch(err){toast('檔案格式錯誤，請選擇正確的快照檔');}
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
 function exportData(){
   const date=new Date().toISOString().slice(0,10);
   const name=(DATA.trips&&Object.keys(DATA.trips||{}).length===1&&Object.values(DATA.trips)[0]&&Object.values(DATA.trips)[0].name)?Object.values(DATA.trips)[0].name:'all';
