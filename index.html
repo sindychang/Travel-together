@@ -558,8 +558,8 @@ function showSyncConflict(local,fb,onDone){
         <div style="font-size:10px;color:var(--text-muted)">${fmt(fts)}</div>
       </div>
     </div>
-    <button class="btn full" style="margin-bottom:8px" onclick="conflictChoose('local')">📱 保留本機版本（覆蓋雲端）</button>
-    <button class="btn full ghost" style="margin-bottom:8px" onclick="conflictChoose('cloud')">☁️ 保留雲端版本（覆蓋本機）</button>
+    <button class="btn full" style="margin-bottom:8px" onclick="conflictChoose('cloud')">☁️ 使用雲端資料</button>
+    <button class="btn full ghost" style="margin-bottom:8px" onclick="conflictChoose('local')">📱 用我的資料覆蓋雲端</button>
     <button class="btn full gray" onclick="conflictChoose('merge')">🔀 合併兩版（保留所有旅程）</button>`;
   bg.classList.add('show');
 }
