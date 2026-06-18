@@ -396,21 +396,38 @@ function logChange(action,detail){
   ref('changelog/'+ACTIVE+'/'+uid()).set({who:ME,when:Date.now(),action,detail:detail||''}).catch(()=>{});
 }
 
-/* ── 自動版本快照（每次儲存前建立，最多保留5份）── */
+/* ── 自動版本快照（30分鐘內同人合併為一筆，最多保留5份）── */
 function autoSnapshot(action){
   if(!ACTIVE||!db) return;
-  const snapData={};
-  ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
-    if(DATA[k]&&DATA[k][ACTIVE]) snapData[k]={[ACTIVE]:JSON.parse(JSON.stringify(DATA[k][ACTIVE]))};
+  const now=Date.now(); const THIRTY=30*60*1000; const me=ME||'匿名';
+  // 先查最新一筆，判斷是否可合併
+  ref('snapshots/'+ACTIVE).orderByChild('at').limitToLast(1).once('value').then(s=>{
+    let mergeKey=null;
+    s.forEach(c=>{const v=c.val(); if(v.who===me&&now-v.at<THIRTY) mergeKey=c.key;});
+    if(mergeKey){
+      // 同人30分鐘內：只更新時間與動作標籤，保留最早的資料狀態
+      ref('snapshots/'+ACTIVE+'/'+mergeKey).update({at:now,action}).catch(()=>{});
+    } else {
+      // 新的 session：建立快照並修剪到5份
+      const snapData={};
+      ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
+        if(DATA[k]&&DATA[k][ACTIVE]) snapData[k]={[ACTIVE]:JSON.parse(JSON.stringify(DATA[k][ACTIVE]))};
+      });
+      ref('snapshots/'+ACTIVE+'/'+uid()).set({at:now,createdAt:now,who:me,action,data:snapData}).then(()=>{
+        ref('snapshots/'+ACTIVE).orderByChild('at').once('value').then(s2=>{
+          const keys=[];s2.forEach(c=>keys.push(c.key));
+          if(keys.length>5) keys.slice(0,keys.length-5).forEach(k=>ref('snapshots/'+ACTIVE+'/'+k).remove().catch(()=>{}));
+        }).catch(()=>{});
+      }).catch(()=>{});
+    }
+  }).catch(()=>{
+    // 讀取失敗時直接新建
+    const snapData={};
+    ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
+      if(DATA[k]&&DATA[k][ACTIVE]) snapData[k]={[ACTIVE]:JSON.parse(JSON.stringify(DATA[k][ACTIVE]))};
+    });
+    ref('snapshots/'+ACTIVE+'/'+uid()).set({at:now,createdAt:now,who:me,action,data:snapData}).catch(()=>{});
   });
-  const entry={at:Date.now(),who:ME||'匿名',action,data:snapData};
-  ref('snapshots/'+ACTIVE+'/'+uid()).set(entry).then(()=>{
-    ref('snapshots/'+ACTIVE).orderByChild('at').once('value').then(s=>{
-      const keys=[];
-      s.forEach(c=>keys.push(c.key));
-      if(keys.length>5) keys.slice(0,keys.length-5).forEach(k=>ref('snapshots/'+ACTIVE+'/'+k).remove().catch(()=>{}));
-    }).catch(()=>{});
-  }).catch(()=>{});
 }
 function loadSnapshots(){
   const box=$('snapshots-content'); if(!box) return;
@@ -421,21 +438,41 @@ function loadSnapshots(){
     entries.reverse();
     if(!entries.length){box.innerHTML='<div style="color:var(--text-muted);font-size:12px">尚無版本快照<br><span style="font-size:11px">每次儲存時會自動建立</span></div>';return;}
     const fmtTs=ts=>{const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');};
-    box.innerHTML=entries.map((e,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px"><span style="font-weight:700;color:var(--primary)">${esc(e.who||'?')}</span>・${esc(e.action||'')}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${fmtTs(e.at)}${i===0?' 〔最新〕':''}</div>
-      </div>
-      <button class="btn sm ghost" style="flex-shrink:0" onclick="restoreAutoSnapshot('${e.k}')">${fi('rotate-ccw',11)} 還原</button>
-    </div>`).join('');
+    box.innerHTML=entries.map((e,i)=>{
+      const startT=e.createdAt||e.at; const endT=e.at;
+      const timeStr=startT&&endT&&endT-startT>60000?fmtTs(startT)+' ~ '+fmtTs(endT):fmtTs(endT);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border-light)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px"><span style="font-weight:700;color:var(--primary)">${esc(e.who||'?')}</span>・${esc(e.action||'')}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${timeStr}${i===0?' 〔最新〕':''}</div>
+        </div>
+        <button class="btn sm ghost" style="flex-shrink:0;padding:4px 8px" onclick="downloadSnapshot('${e.k}')">${fi('download',11)}</button>
+        <button class="btn sm ghost" style="flex-shrink:0" onclick="restoreAutoSnapshot('${e.k}')">${fi('rotate-ccw',11)} 還原</button>
+      </div>`;
+    }).join('');
   }).catch(()=>{box.innerHTML='<div style="color:var(--text-muted);font-size:12px">載入失敗</div>';});
+}
+function downloadSnapshot(snapId){
+  if(!db||!ACTIVE){toast('需連線');return;}
+  ref('snapshots/'+ACTIVE+'/'+snapId).once('value').then(s=>{
+    const snap=s.val(); if(!snap||!snap.data){toast('快照資料不完整');return;}
+    const tripName=(DATA.trips&&DATA.trips[ACTIVE]?.name)||ACTIVE;
+    const date=new Date(snap.createdAt||snap.at).toISOString().replace('T','_').slice(0,16);
+    const filename=('snapshot_'+tripName+'_'+date+'.json').replace(/[^\w.\-一-鿿]/g,'_');
+    const blob=new Blob([JSON.stringify({_snapshotMeta:{tripId:ACTIVE,tripName,at:snap.createdAt||snap.at,who:snap.who},...snap.data},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    toast('已下載：'+filename);
+  }).catch(()=>toast('下載失敗'));
 }
 function restoreAutoSnapshot(snapId){
   if(!db||!ACTIVE){toast('需連線才能還原');return;}
   ref('snapshots/'+ACTIVE+'/'+snapId).once('value').then(s=>{
     const snap=s.val(); if(!snap||!snap.data){toast('快照資料不完整');return;}
-    const atStr=new Date(snap.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    appConfirm(`還原到「${esc(snap.who)}」在 ${atStr} 儲存前的版本？\n目前資料將被覆蓋。`,()=>{
+    const startT=snap.createdAt||snap.at; const endT=snap.at;
+    const fmtTs=ts=>{const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');};
+    const timeStr=endT-startT>60000?fmtTs(startT)+' ~ '+fmtTs(endT):fmtTs(endT);
+    appConfirm(`還原到「${esc(snap.who)}」${timeStr} 前的版本？\n目前資料將被覆蓋。`,()=>{
       autoSnapshot('還原操作前的備份');
       ['trips','days','items','places','memos','todos','polls','flights'].forEach(k=>{
         if(snap.data[k]){
