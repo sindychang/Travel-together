@@ -1039,6 +1039,10 @@ function editItem(dayId,itId){
     <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:2;min-width:140px"><label class="fld">到下一站交通</label>
       <select class="tag-input" id="it-mode">${Object.keys(MODES).map(k=>`<option value="${k}" ${(it.transitMode||'transit')===k?'selected':''}>${MODES[k][0]}</option>`).join('')}</select></div>
     <div style="flex:1;min-width:100px"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="20" value="${esc(it.transitMin||'')}"></div></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:10px 2px 0;padding:10px 12px;background:var(--warm-light);border-radius:10px;cursor:pointer" onclick="const cb=document.getElementById('it-save-places');cb.checked=!cb.checked">
+      <input type="checkbox" id="it-save-places" ${!itId||it.placeId?'checked':''} onclick="event.stopPropagation()" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
+      <label for="it-save-places" style="font-size:13px;cursor:pointer;color:var(--text-primary);line-height:1.3;pointer-events:none">${fi('bookmark',13)} 加入收藏</label>
+    </div>
     <div class="modal-acts">${itId?`<button class="btn danger" onclick="confirmDel('刪除此項目？',()=>{fbRemove('items/${ACTIVE}/${dayId}/${itId}');closeModal()})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveItem('${dayId}','${itId||''}')">儲存</button></div>`);
 }
@@ -1046,9 +1050,25 @@ let _seg={};
 function segPick(group,v){ _seg[group]=v; document.querySelectorAll('#'+group+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
 function saveItem(dayId,itId){
   const name=$('it-name').value.trim(); if(!name){toast('請輸入名稱');return;}
+  const saveToFav=document.getElementById('it-save-places')?.checked;
   const targetDay=$('it-day').value;
   const type=_seg['it-type']||(document.querySelector('#it-type button.on')?.dataset.v||'spot');
   const obj={type,name,time:$('it-time').value,mapUrl:$('it-map').value.trim(),note:$('it-note').value.trim(),transitMode:$('it-mode').value,transitMin:$('it-tmin').value,updatedBy:ME,updatedAt:Date.now()};
+  // 取得既有 placeId（從收藏加入行程、或先前已存進收藏）
+  const _existItem=itId&&DATA.items&&DATA.items[ACTIVE]&&(DATA.items[ACTIVE][dayId]?.[itId]||DATA.items[ACTIVE][targetDay]?.[itId]);
+  const existPlaceId=_existItem&&_existItem.placeId;
+  if(existPlaceId) obj.placeId=existPlaceId; // 保留連結
+  if(saveToFav){
+    const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+    const placeData={cat:type,name,area:dest,mapUrl:obj.mapUrl,note:obj.note,updatedBy:ME,updatedAt:Date.now()};
+    if(existPlaceId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][existPlaceId]){
+      fbUpdate('places/'+ACTIVE+'/'+existPlaceId,placeData); // 更新現有收藏
+    } else {
+      const newPid=uid(); placeData.rating=0; placeData.createdAt=Date.now();
+      fbSet('places/'+ACTIVE+'/'+newPid,placeData);
+      obj.placeId=newPid; // 建立雙向連結
+    }
+  }
   if(!itId){
     const cur=DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][targetDay]?Object.keys(DATA.items[ACTIVE][targetDay]).length:0;
     obj.order=cur; itId=uid(); fbSet('items/'+ACTIVE+'/'+targetDay+'/'+itId,obj);
@@ -1058,7 +1078,7 @@ function saveItem(dayId,itId){
       fbRemove('items/'+ACTIVE+'/'+dayId+'/'+itId); fbSet('items/'+ACTIVE+'/'+targetDay+'/'+itId,obj);
     } else { obj.order=(DATA.items[ACTIVE][dayId]&&DATA.items[ACTIVE][dayId][itId]?.order)||0; fbUpdate('items/'+ACTIVE+'/'+dayId+'/'+itId,obj); }
   }
-  _seg={}; closeModal(); toast('已儲存');
+  _seg={}; closeModal(); toast(saveToFav?'已儲存並加入收藏 🔖':'已儲存');
 }
 function itemMenu(dayId,itId){ editItem(dayId,itId); }
 
