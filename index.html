@@ -121,6 +121,7 @@
   .transit .tline{flex:1;border-top:1.5px dashed var(--border)}
   .item.dragging{opacity:.5}
   .item.dragover{box-shadow:inset 0 2px 0 var(--primary)}
+  .day-items.drag-target{outline:2px dashed var(--primary);border-radius:8px;background:var(--warm-light)}
   .map-embed{width:100%;height:200px;border:none;border-radius:var(--radius-sm);margin-top:6px}
 
   /* ── flights ── */
@@ -1082,17 +1083,58 @@ function saveItem(dayId,itId){
 }
 function itemMenu(dayId,itId){ editItem(dayId,itId); }
 
-/* 拖拉排序 */
+/* 拖拉排序（支援跨天移動） */
 let _drag=null;
 function dragStart(e,dayId,itId){
-  e.preventDefault(); const el=e.target.closest('.item'); const container=el.parentNode;
-  _drag={el,container,dayId,itId}; el.classList.add('dragging');
+  e.preventDefault();
+  const el=e.target.closest('.item'); const container=el.parentNode;
+  _drag={el,container,origDayId:dayId,itId};
+  el.classList.add('dragging');
   el.setPointerCapture&&el.setPointerCapture(e.pointerId);
-  document.addEventListener('pointermove',dragMove); document.addEventListener('pointerup',dragEnd,{once:true});
+  document.body.style.userSelect='none'; document.body.style.webkitUserSelect='none';
+  document.addEventListener('pointermove',dragMove);
+  document.addEventListener('pointerup',dragEnd,{once:true});
 }
-function dragMove(e){ if(!_drag)return; const after=getDragAfter(_drag.container,e.clientY); if(after==null)_drag.container.appendChild(_drag.el); else _drag.container.insertBefore(_drag.el,after); }
+function dragMove(e){
+  if(!_drag)return;
+  // 偵測是否移入其他天的容器
+  document.querySelectorAll('.day-items').forEach(c=>{
+    const r=c.getBoundingClientRect();
+    if(e.clientY>=r.top&&e.clientY<=r.bottom&&e.clientX>=r.left&&e.clientX<=r.right&&c!==_drag.container){
+      _drag.container.classList.remove('drag-target');
+      _drag.container=c;
+      _drag.container.classList.add('drag-target');
+    }
+  });
+  const after=getDragAfter(_drag.container,e.clientY);
+  if(after==null) _drag.container.appendChild(_drag.el);
+  else _drag.container.insertBefore(_drag.el,after);
+}
 function getDragAfter(container,y){ const els=[...container.querySelectorAll('.item:not(.dragging)')]; return els.reduce((closest,child)=>{ const box=child.getBoundingClientRect(); const offset=y-box.top-box.height/2; if(offset<0&&offset>closest.offset) return{offset,element:child}; return closest; },{offset:-Infinity}).element||null; }
-function dragEnd(){ if(!_drag)return; document.removeEventListener('pointermove',dragMove); _drag.el.classList.remove('dragging'); const ids=[..._drag.container.querySelectorAll('.item')].map(el=>el.dataset.id); const upd={}; ids.forEach((id,i)=>{upd[id+'/order']=i;}); fbUpdate('items/'+ACTIVE+'/'+_drag.dayId,upd); _drag=null; }
+function dragEnd(){
+  if(!_drag)return;
+  document.removeEventListener('pointermove',dragMove);
+  document.body.style.userSelect=''; document.body.style.webkitUserSelect='';
+  _drag.el.classList.remove('dragging'); _drag.container.classList.remove('drag-target');
+  const newDayId=_drag.container.dataset.day;
+  const origDayId=_drag.origDayId;
+  const itId=_drag.itId;
+  const newIds=[..._drag.container.querySelectorAll('.item')].map(el=>el.dataset.id);
+  if(newDayId!==origDayId){
+    // 跨天移動：從原天刪除，加到新天
+    const oldItem=Object.assign({},(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][origDayId]&&DATA.items[ACTIVE][origDayId][itId])||{});
+    delete oldItem._id; oldItem.updatedBy=ME; oldItem.updatedAt=Date.now(); oldItem.order=newIds.indexOf(itId);
+    fbRemove('items/'+ACTIVE+'/'+origDayId+'/'+itId);
+    fbSet('items/'+ACTIVE+'/'+newDayId+'/'+itId,oldItem);
+    const newUpd={}; newIds.forEach((id,i)=>{newUpd[id+'/order']=i;}); fbUpdate('items/'+ACTIVE+'/'+newDayId,newUpd);
+    // 更新原天剩餘順序
+    const oldDayData=DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][origDayId];
+    if(oldDayData){ const rem=Object.keys(oldDayData).filter(k=>k!==itId).map(k=>Object.assign({_id:k},oldDayData[k])).sort((a,b)=>(a.order||0)-(b.order||0)); const oldUpd={}; rem.forEach((it,i)=>{oldUpd[it._id+'/order']=i;}); if(Object.keys(oldUpd).length) fbUpdate('items/'+ACTIVE+'/'+origDayId,oldUpd); }
+  } else {
+    const upd={}; newIds.forEach((id,i)=>{upd[id+'/order']=i;}); fbUpdate('items/'+ACTIVE+'/'+origDayId,upd);
+  }
+  _drag=null;
+}
 
 /* ════════════ 收藏庫頁 ════════════ */
 let _placeFilter='all', _placeQuery='', _discQuery='', _discResults=[], _discCat='all', _discGeo=null;
