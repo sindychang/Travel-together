@@ -634,7 +634,7 @@ function fabAction(){
 
 /* ════════════ 圖示+類別 常數 ════════════ */
 const TYPES={
-  spot: {lbl:'景點',icon:'map-pin',      cls:'t-spot'},
+  spot: {lbl:'景點',icon:'camera',        cls:'t-spot'},
   food: {lbl:'餐廳',icon:'coffee',       cls:'t-food'},
   shop: {lbl:'購物',icon:'shopping-bag', cls:'t-shop'},
   fun:  {lbl:'娛樂',icon:'smile',        cls:'t-fun'},
@@ -927,6 +927,7 @@ function renderItin(){
           <div class="item-body" onclick="itemMenu('${day._id}','${it._id}')">
             ${it.time?`<div class="item-top"><span class="item-time">${fi('clock',11)} ${esc(it.time)}</span></div>`:''}
             <div class="item-name">${esc(it.name)}</div>
+            ${(()=>{const _a=it.placeId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][it.placeId]?.area;return _a?`<div style="font-size:11px;color:var(--text-muted);margin-top:1px">${fi('map-pin',10)} ${esc(_a)}</div>`:''})()}
             ${it.note?`<div class="item-note">${esc(it.note)}</div>`:''}
             <div id="map-${it._id}"></div>
           </div>
