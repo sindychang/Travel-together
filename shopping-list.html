@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>購物清單</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4FAF8;--panel:#FFFFFF;--ink:#1A2E28;--ink-soft:#5A7268;
+  --primary:#2D8B72;--primary-light:#E0F2EC;--primary-dark:#1F6653;
+  --accent:#7EC8B6;--line:#C8E0D8;
+  --danger:#EF4444;--danger-light:#FEE2E2;
+  --radius:14px;
+}
+*{box-sizing:border-box;font-family:"Noto Sans TC",-apple-system,BlinkMacSystemFont,sans-serif;}
+html,body{margin:0;padding:0;overflow-x:hidden;}
+body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;min-height:100vh;}
+
+/* ── Header ── */
+.header{
+  background:linear-gradient(135deg,var(--primary-dark),var(--primary));
+  color:#fff;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 14px;
+  position:sticky;top:0;z-index:50;
+  box-shadow:0 2px 12px rgba(0,0,0,.18);
+}
+.header-inner{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.header-title{display:flex;align-items:center;gap:10px;}
+.header-icon{width:34px;height:34px;background:rgba(255,255,255,.2);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.header-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.header h1{margin:0;font-size:18px;font-weight:900;letter-spacing:-.3px;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.header-stats{font-size:12px;background:rgba(255,255,255,.2);border-radius:999px;padding:4px 12px;font-weight:700;white-space:nowrap;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);flex-shrink:0;}
+.sync-dot.ok{background:#6ee7b7;}
+.sync-dot.err{background:#fca5a5;}
+
+/* ── Filter bar ── */
+.filter-bar{
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+}
+.filter-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;cursor:pointer;max-width:720px;margin:0 auto;
+  user-select:none;
+}
+.filter-toggle-left{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink-soft);}
+.filter-toggle-left svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.filter-badge{background:var(--primary);color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;}
+.filter-chevron{width:16px;height:16px;fill:none;stroke:var(--ink-soft);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s;}
+.filter-chevron.open{transform:rotate(180deg);}
+
+.filter-body{
+  max-height:0;overflow:hidden;transition:max-height .25s ease;
+  border-top:0 solid var(--line);
+}
+.filter-body.open{max-height:300px;border-top:1px solid var(--line);}
+.filter-inner{max-width:720px;margin:0 auto;padding:12px 16px 14px;}
+
+.filter-search{
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg);border:1.5px solid var(--line);border-radius:10px;
+  padding:8px 12px;margin-bottom:12px;
+}
+.filter-search svg{width:14px;height:14px;fill:none;stroke:var(--ink-soft);stroke-width:2;stroke-linecap:round;flex-shrink:0;}
+.filter-search input{border:none;background:none;font-size:13px;flex:1;color:var(--ink);outline:none;font-family:"Noto Sans TC",sans-serif;}
+.filter-search input::placeholder{color:var(--accent);}
+
+.filter-row{margin-bottom:8px;}
+.filter-row-label{font-size:10px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:6px;text-transform:uppercase;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{
+  padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;
+  border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.chip:hover{border-color:var(--primary);color:var(--primary);}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.filter-clear{
+  margin-top:10px;background:none;border:none;color:var(--ink-soft);
+  font-size:12px;cursor:pointer;padding:0;text-decoration:underline;
+}
+
+/* ── Wrap ── */
+.wrap{max-width:720px;margin:0 auto;padding:18px 16px 0;}
+@media(min-width:600px){.wrap{padding:24px 24px 0;}}
+
+/* ── Add store button ── */
+.add-store-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;background:#fff;border:2px dashed var(--accent);
+  color:var(--primary);border-radius:var(--radius);
+  padding:13px;font-size:14px;font-weight:700;cursor:pointer;
+  margin-bottom:20px;transition:background .15s;
+}
+.add-store-btn:hover{background:var(--primary-light);}
+
+/* ── Store card ── */
+.store-card{background:var(--panel);border-radius:var(--radius);margin-bottom:16px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1px solid var(--line);}
+.store-header{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 11px;
+  background:var(--primary-light);
+  border-bottom:1px solid var(--line);
+  cursor:pointer;user-select:none;
+}
+.store-header.hdr-closed{border-bottom:none;}
+.store-chevron{
+  width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;color:var(--ink-soft);transition:transform .2s;
+}
+.store-chevron.closed{transform:rotate(-90deg);}
+.store-chevron svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.store-header-main{flex:1;min-width:0;}
+.store-name-row{display:flex;align-items:center;gap:5px;overflow:hidden;}
+.store-name{font-weight:900;font-size:15px;color:var(--primary-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0;}
+.store-tag{
+  font-size:11px;font-weight:500;border-radius:4px;padding:1px 6px;
+  background:#D6E5DF;color:#5A7268;white-space:nowrap;flex-shrink:0;
+}
+.store-count{font-size:11px;color:var(--ink-soft);background:#fff;border-radius:999px;padding:2px 8px;font-weight:700;flex-shrink:0;border:1px solid var(--line);}
+.store-btns{display:flex;gap:5px;flex-shrink:0;}
+.store-body.closed{display:none;}
+.icon-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;border:none;cursor:pointer;flex-shrink:0;transition:background .15s;}
+.icon-btn.edit{background:#D8EEE7;color:var(--primary);}
+.icon-btn.edit:hover{background:#C0E2D4;}
+.icon-btn.del{background:var(--danger-light);color:var(--danger);}
+.icon-btn.del:hover{background:#FCA5A5;}
+.icon-btn svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ── Item ── */
+.item-row{
+  display:grid;
+  grid-template-columns:58px 1fr auto;
+  gap:10px;align-items:start;
+  padding:11px 13px;
+  border-bottom:1px solid #EDF7F3;
+}
+@media(min-width:500px){.item-row{grid-template-columns:70px 1fr auto;gap:13px;padding:13px 15px;}}
+.item-row:last-of-type{border-bottom:none;}
+.item-thumb-wrap{width:58px;height:58px;}
+@media(min-width:500px){.item-thumb-wrap{width:70px;height:70px;}}
+.item-thumb{width:100%;height:100%;border-radius:9px;object-fit:cover;display:block;border:1px solid var(--line);}
+.item-thumb-fallback{width:100%;height:100%;border-radius:9px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}
+.item-thumb-fallback svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.5;}
+.item-body{min-width:0;}
+.item-name{font-weight:700;font-size:13px;line-height:1.4;word-break:break-word;margin-bottom:2px;}
+@media(min-width:400px){.item-name{font-size:14px;}}
+.item-name.done{text-decoration:line-through;color:var(--ink-soft);}
+.item-price{font-size:12px;color:var(--primary-dark);font-weight:700;margin-bottom:2px;}
+.item-note{font-size:12px;color:var(--ink-soft);margin-bottom:3px;line-height:1.4;}
+.item-link{display:inline-block;font-size:11px;color:var(--primary);text-decoration:none;word-break:break-all;line-height:1.5;}
+.item-link:hover{text-decoration:underline;}
+.item-actions{display:flex;flex-direction:column;align-items:flex-end;gap:5px;padding-top:1px;}
+.check-btn{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
+.check-btn:hover{border-color:var(--primary);}
+.check-btn.done{background:var(--primary);border-color:var(--primary);}
+.check-btn.done svg{stroke:#fff;}
+.check-btn svg{width:13px;height:13px;fill:none;stroke:var(--line);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.item-edit-row{display:flex;gap:4px;}
+
+/* ── Add item ── */
+.add-item-btn{
+  display:flex;align-items:center;gap:6px;width:100%;background:none;border:none;
+  color:var(--primary);padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;
+  border-top:1px dashed var(--line);text-align:left;transition:background .15s;
+}
+.add-item-btn:hover{background:var(--primary-light);}
+
+/* ── Done bar ── */
+.done-bar{display:flex;align-items:center;gap:8px;padding:8px 13px;font-size:12px;color:var(--ink-soft);background:#F0FAF6;border-top:1px solid var(--line);cursor:pointer;}
+.done-bar:hover{background:#E4F5EE;}
+.done-bar-label{flex:1;}
+.done-toggle-btn{background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--ink-soft);cursor:pointer;}
+
+/* ── Empty ── */
+.empty-store{padding:16px 13px;font-size:13px;color:var(--ink-soft);text-align:center;}
+.empty-page{text-align:center;padding:56px 20px;color:var(--ink-soft);}
+.empty-page svg{width:52px;height:52px;stroke:var(--accent);fill:none;stroke-width:1.5;margin-bottom:14px;}
+.empty-page h2{font-size:16px;font-weight:700;color:var(--ink);margin:0 0 6px;}
+.empty-page p{font-size:13px;margin:0;}
+.no-result{text-align:center;padding:40px 20px;color:var(--ink-soft);font-size:14px;}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end;overflow:hidden;}
+.modal-bg.open{display:flex;}
+.modal-sheet{
+  background:#fff;border-radius:22px 22px 0 0;
+  padding:22px 18px calc(env(safe-area-inset-bottom,0px) + 32px);
+  width:100%;max-width:100%;
+  max-height:90vh;overflow-y:auto;overflow-x:hidden;
+  box-sizing:border-box;
+}
+@media(min-width:600px){
+  .modal-bg{align-items:center;justify-content:center;}
+  .modal-sheet{border-radius:18px;max-width:480px;max-height:85vh;}
+}
+.modal-title{font-size:17px;font-weight:900;margin-bottom:16px;color:var(--primary-dark);}
+.fld{display:block;font-size:11px;color:var(--ink-soft);margin:12px 0 4px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:"Noto Sans TC",sans-serif;background:#fff;color:var(--ink);-webkit-appearance:none;}
+.inp:focus{outline:none;border-color:var(--primary);}
+textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
+.inp-row{display:grid;grid-template-columns:1fr;gap:10px;}
+@media(min-width:440px){.inp-row{grid-template-columns:1fr 1fr;}}
+.modal-acts{display:flex;gap:8px;margin-top:20px;}
+.btn-save{flex:1;background:var(--primary);color:#fff;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-save:active{background:var(--primary-dark);}
+.btn-cancel{background:#F0F4F2;color:var(--ink-soft);border:none;border-radius:11px;padding:13px 16px;font-size:15px;cursor:pointer;}
+.btn-del{background:var(--danger-light);color:var(--danger);border:none;border-radius:11px;padding:13px 14px;font-size:15px;cursor:pointer;}
+.fetch-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;background:var(--primary);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px;}
+.fetch-btn:disabled{opacity:.5;cursor:not-allowed;}
+.preview-box{display:none;align-items:center;gap:10px;background:var(--primary-light);border-radius:10px;padding:10px;margin-top:8px;min-height:50px;border:1px solid var(--line);}
+.preview-box.show{display:flex;}
+.preview-box img{width:48px;height:48px;border-radius:7px;object-fit:cover;flex-shrink:0;background:#fff;}
+.preview-box .p-text{font-size:12px;color:var(--ink);line-height:1.4;flex:1;}
+.hint{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-title">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      </div>
+      <h1>購物清單</h1>
+    </div>
+    <div class="header-right">
+      <div class="sync-dot" id="sync-dot"></div>
+      <div class="header-stats" id="header-stats">讀取中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar" id="filter-bar">
+  <div class="filter-toggle" onclick="toggleFilter()">
+    <div class="filter-toggle-left">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      篩選
+      <span class="filter-badge" id="filter-badge" style="display:none">!</span>
+    </div>
+    <svg class="filter-chevron" id="filter-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+  <div class="filter-body" id="filter-body">
+    <div class="filter-inner">
+      <div class="filter-search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="filter-text" placeholder="搜尋店家或品項…" oninput="onFilterChange()" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <div class="filter-row-label">地區</div>
+        <div class="chips" id="chips-region"></div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-row-label">類別</div>
+        <div class="chips" id="chips-category"></div>
+      </div>
+      <button class="filter-clear" id="filter-clear" onclick="clearFilter()" style="display:none">清除所有篩選</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="wrap">
+  <div id="stores-wrap"></div>
+  <button class="add-store-btn" onclick="addStore()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    新增店家
+  </button>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal" onclick="onBg(event)">
+  <div class="modal-sheet" id="modal-inner"></div>
+</div>
+
+<script>
+// ── Firebase ──
+const firebaseConfig={
+  apiKey:"AIzaSyAM9fK8cOIyyTuELrTi2b5yt0Nm-1SBZ8I",
+  authDomain:"travel-together-7168a.firebaseapp.com",
+  databaseURL:"https://travel-together-7168a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"travel-together-7168a",
+  storageBucket:"travel-together-7168a.firebasestorage.app",
+  messagingSenderId:"789216457084",
+  appId:"1:789216457084:web:9386671702da5d18d434f9"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+const PATH='docs/shopping-list';
+function fbRef(p){return db.ref(PATH+(p?'/'+p:''));}
+function fbSet(p,v){return fbRef(p).set(v);}
+
+// ── State ──
+let DATA={stores:[]};
+let MODAL_OPEN=false;
+let _showDone={}, _storeOpen={};
+let _filterText='', _filterRegion='', _filterCategory='', _filterOpen=false;
+
+function toArr(v){
+  if(!v) return [];
+  if(Array.isArray(v)) return v.filter(x=>x!=null);
+  return Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]).filter(x=>x!=null);
+}
+
+// ── Firebase init ──
+const dot=document.getElementById('sync-dot');
+fbRef().once('value').then(snap=>{
+  const val=snap.val();
+  if(!val||!val.stores){ fbRef().set({stores:[]}); DATA={stores:[]}; renderAll(); }
+  else { mergeData(val); renderAll(); }
+  dot.className='sync-dot ok';
+}).catch(()=>{ dot.className='sync-dot err'; renderAll(); });
+
+fbRef().on('value',snap=>{
+  const val=snap.val(); if(!val) return;
+  mergeData(val);
+  if(!MODAL_OPEN) renderAll();
+  dot.className='sync-dot ok';
+});
+
+function mergeData(val){
+  DATA.stores=toArr(val.stores).map(s=>({
+    name:s.name||'（未命名店家）',
+    region:s.region||'',
+    category:s.category||'',
+    items:toArr(s.items).map(it=>({
+      name:it.name||'',url:it.url||'',price:it.price||'',
+      note:it.note||'',done:!!it.done,
+      preview:{img:it.preview?.img||'',title:it.preview?.title||''}
+    }))
+  }));
+}
+
+// ── SVG ──
+const svg={
+  edit:`<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:`<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  check:`<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
+  bag:`<svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`
+};
+
+// ── Filter logic ──
+function getFilteredStores(){
+  return DATA.stores.filter((s,_si)=>{
+    if(_filterRegion && s.region!==_filterRegion) return false;
+    if(_filterCategory && s.category!==_filterCategory) return false;
+    if(_filterText){
+      const q=_filterText.toLowerCase();
+      const nameMatch=(s.name||'').toLowerCase().includes(q);
+      const itemMatch=s.items.some(it=>(it.name||'').toLowerCase().includes(q)||(it.note||'').toLowerCase().includes(q));
+      if(!nameMatch&&!itemMatch) return false;
+    }
+    return true;
+  });
+}
+function hasActiveFilter(){ return !!(  _filterText||_filterRegion||_filterCategory); }
+
+function toggleStore(si){ _storeOpen[si]=(_storeOpen[si]!==false)?false:true; renderStores(); }
+
+function toggleFilter(){
+  _filterOpen=!_filterOpen;
+  document.getElementById('filter-body').classList.toggle('open',_filterOpen);
+  document.getElementById('filter-chevron').classList.toggle('open',_filterOpen);
+}
+function onFilterChange(){
+  _filterText=document.getElementById('filter-text').value.trim();
+  renderStores();
+  updateFilterUI();
+}
+function setRegion(r){ _filterRegion=(_filterRegion===r)?'':r; renderStores(); updateFilterUI(); }
+function setCategory(c){ _filterCategory=(_filterCategory===c)?'':c; renderStores(); updateFilterUI(); }
+function clearFilter(){
+  _filterText=''; _filterRegion=''; _filterCategory='';
+  document.getElementById('filter-text').value='';
+  renderStores(); updateFilterUI();
+}
+function updateFilterUI(){
+  const active=hasActiveFilter();
+  document.getElementById('filter-badge').style.display=active?'':'none';
+  document.getElementById('filter-clear').style.display=active?'':'none';
+  // rebuild chips
+  const regions=[...new Set(DATA.stores.map(s=>s.region).filter(Boolean))];
+  const cats=[...new Set(DATA.stores.map(s=>s.category).filter(Boolean))];
+  document.getElementById('chips-region').innerHTML=
+    regions.map(r=>`<div class="chip${_filterRegion===r?' active':''}" onclick="setRegion('${ea(r)}')">${eh(r)}</div>`).join('')||'<span style="font-size:12px;color:var(--ink-soft)">（尚無地區）</span>';
+  document.getElementById('chips-category').innerHTML=
+    cats.map(c=>`<div class="chip${_filterCategory===c?' active':''}" onclick="setCategory('${ea(c)}')">${eh(c)}</div>`).join('')||'<span style="font-size:12px;color:var(--ink-soft)">（尚無類別）</span>';
+}
+
+// ── Render ──
+function renderAll(){
+  updateFilterUI();
+  renderStores();
+  let total=0,done=0;
+  DATA.stores.forEach(s=>s.items.forEach(it=>{total++;if(it.done)done++;}));
+  document.getElementById('header-stats').textContent=total?`${done}/${total} 已買`:'0 件';
+}
+
+function renderStores(){
+  const wrap=document.getElementById('stores-wrap');
+  const filtered=getFilteredStores();
+  if(!DATA.stores.length){
+    wrap.innerHTML=`<div class="empty-page">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <h2>清單還是空的</h2><p>點下方「新增店家」開始記錄</p></div>`;
+  } else if(!filtered.length){
+    wrap.innerHTML=`<div class="no-result">🔍 沒有符合篩選條件的店家<br><button class="filter-clear" onclick="clearFilter()" style="margin-top:10px;display:inline">清除篩選</button></div>`;
+  } else {
+    // Render using original indices for correct si references
+    wrap.innerHTML=filtered.map(s=>{ const si=DATA.stores.indexOf(s); return renderStore(s,si); }).join('');
+  }
+}
+
+function renderStore(s,si){
+  const items=s.items||[];
+  const pending=items.filter(it=>!it.done);
+  const doneItems=items.filter(it=>it.done);
+  const showD=_showDone[si];
+  const isOpen=_storeOpen[si]!==false;
+  return `<div class="store-card">
+    <div class="store-header${isOpen?'':' hdr-closed'}" onclick="toggleStore(${si})">
+      <div class="store-chevron${isOpen?'':' closed'}">
+        <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="store-header-main">
+        <div class="store-name-row">
+          <span class="store-name">${eh(s.name)}</span>
+          ${s.region?`<span class="store-tag">${eh(s.region)}</span>`:''}
+          ${s.category?`<span class="store-tag">${eh(s.category)}</span>`:''}
+        </div>
+      </div>
+      ${pending.length?`<span class="store-count">${pending.length} 件</span>`:''}
+      <div class="store-btns" onclick="event.stopPropagation()">
+        <button class="icon-btn edit" onclick="editStore(${si})" title="編輯">${svg.edit}</button>
+        <button class="icon-btn del" onclick="delStore(${si})" title="刪除">${svg.trash}</button>
+      </div>
+    </div>
+    <div class="store-body${isOpen?'':' closed'}">
+      ${pending.length?pending.map(it=>{ const i=items.indexOf(it); return renderItem(it,si,i); }).join(''):''}
+      ${!pending.length&&!doneItems.length?`<div class="empty-store">尚無品項，點下方「＋ 新增品項」</div>`:''}
+      ${doneItems.length?`<div class="done-bar" onclick="_showDone[${si}]=!_showDone[${si}];renderAll()">
+        <span class="done-bar-label">✅ 已買 ${doneItems.length} 件</span>
+        <button class="done-toggle-btn">${showD?'收合':'展開'}</button>
+      </div>`:''}
+      ${showD?doneItems.map(it=>{ const i=items.indexOf(it); return renderItem(it,si,i,true); }).join(''):''}
+      <button class="add-item-btn" onclick="addItem(${si})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增品項
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderItem(it,si,ii,faded=false){
+  const hasPrev=it.preview&&it.preview.img;
+  const thumbHtml=hasPrev
+    ?`<img class="item-thumb" src="${eh(it.preview.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="item-thumb-fallback" style="display:none">${svg.bag}</div>`
+    :`<div class="item-thumb-fallback">${svg.bag}</div>`;
+  return `<div class="item-row" style="${faded?'opacity:.5':''}">
+    <div class="item-thumb-wrap">${thumbHtml}</div>
+    <div class="item-body">
+      <div class="item-name${it.done?' done':''}">${eh(it.name)||'（未命名品項）'}</div>
+      ${it.price?`<div class="item-price">${eh(it.price)}</div>`:''}
+      ${it.note?`<div class="item-note">${eh(it.note)}</div>`:''}
+      ${it.url?`<a class="item-link" href="${eh(it.url)}" target="_blank" onclick="event.stopPropagation()">🔗 ${shortUrl(it.url)}</a>`:''}
+    </div>
+    <div class="item-actions">
+      <div class="check-btn${it.done?' done':''}" onclick="toggleItem(${si},${ii})">${svg.check}</div>
+      <div class="item-edit-row">
+        <button class="icon-btn edit" onclick="editItem(${si},${ii})">${svg.edit}</button>
+        <button class="icon-btn del" onclick="delItem(${si},${ii})">${svg.trash}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Modal ──
+function openModal(html){
+  document.getElementById('modal-inner').innerHTML=html;
+  document.getElementById('modal').classList.add('open');
+  MODAL_OPEN=true; window._fetchedPreview=undefined;
+}
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+  MODAL_OPEN=false; renderAll();
+}
+function onBg(e){ if(e.target===document.getElementById('modal')) closeModal(); }
+
+// ── Store CRUD ──
+function _storeModal(title,name,region,category,acts){
+  // Build datalist suggestions
+  const regions=[...new Set(DATA.stores.map(s=>s.region).filter(Boolean))];
+  const cats=[...new Set(DATA.stores.map(s=>s.category).filter(Boolean))];
+  return `<div class="modal-title">${title}</div>
+    <label class="fld">店家名稱</label>
+    <input class="inp" id="s-name" value="${ea(name)}" placeholder="例：Olive Young 明洞店">
+    <div class="inp-row">
+      <div>
+        <label class="fld">地區</label>
+        <input class="inp" id="s-region" value="${ea(region)}" placeholder="例：明洞" list="dl-region" autocomplete="off">
+        <datalist id="dl-region">${regions.map(r=>`<option value="${ea(r)}">`).join('')}</datalist>
+      </div>
+      <div>
+        <label class="fld">類別</label>
+        <input class="inp" id="s-category" value="${ea(category)}" placeholder="例：藥妝" list="dl-cat" autocomplete="off">
+        <datalist id="dl-cat">${cats.map(c=>`<option value="${ea(c)}">`).join('')}</datalist>
+      </div>
+    </div>
+    ${acts}`;
+}
+function addStore(){
+  openModal(_storeModal('新增店家','','','',`<div class="modal-acts">
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-save" onclick="saveNewStore()">新增</button>
+  </div>`));
+  setTimeout(()=>document.getElementById('s-name')?.focus(),100);
+}
+function saveNewStore(){
+  const name=v('s-name'); if(!name){alert('請填入店家名稱');return;}
+  DATA.stores.push({name,region:v('s-region'),category:v('s-category'),items:[]});
+  fbSet('stores',DATA.stores); closeModal();
+}
+function editStore(si){
+  const s=DATA.stores[si];
+  openModal(_storeModal('編輯店家',s.name,s.region,s.category,`<div class="modal-acts">
+    <button class="btn-del" onclick="delStore(${si});closeModal()">刪除此店</button>
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-save" onclick="saveStore(${si})">儲存</button>
+  </div>`));
+  setTimeout(()=>document.getElementById('s-name')?.focus(),100);
+}
+function saveStore(si){
+  DATA.stores[si].name=v('s-name')||DATA.stores[si].name;
+  DATA.stores[si].region=v('s-region');
+  DATA.stores[si].category=v('s-category');
+  fbSet('stores',DATA.stores); closeModal();
+}
+function delStore(si){ if(!confirm(`確定刪除「${DATA.stores[si].name}」及所有品項？`)) return; DATA.stores.splice(si,1); fbSet('stores',DATA.stores); }
+
+// ── Item CRUD ──
+function addItem(si){
+  DATA.stores[si].items.push({name:'',url:'',price:'',note:'',done:false,preview:{img:'',title:''}});
+  const ii=DATA.stores[si].items.length-1;
+  fbSet('stores',DATA.stores);
+  openItemModal(si,ii,true);
+}
+function editItem(si,ii){ openItemModal(si,ii,false); }
+function openItemModal(si,ii,isNew){
+  const it=DATA.stores[si].items[ii];
+  const hasPrev=it.preview&&it.preview.img;
+  openModal(`<div class="modal-title">${isNew?'新增品項':'編輯品項'}</div>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">店家：${eh(DATA.stores[si].name)}</div>
+    <label class="fld">品項名稱</label>
+    <input class="inp" id="it-name" value="${ea(it.name)}" placeholder="例：LANEIGE 水凝光唇膏">
+    <label class="fld">商品網址</label>
+    <input class="inp" id="it-url" value="${ea(it.url)}" placeholder="https://…" oninput="onUrlInput()">
+    <button class="fetch-btn" id="fetch-btn" onclick="fetchPreview()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      抓取商品預覽圖
+    </button>
+    <div class="preview-box${hasPrev?' show':''}" id="preview-box">
+      ${hasPrev?`<img src="${ea(it.preview.img)}" onerror="this.style.display='none'"><div class="p-text">${eh(it.preview.title||'')}</div>`
+        :`<div class="p-text" style="color:var(--ink-soft)">貼網址後點按鈕抓取預覽圖</div>`}
+    </div>
+    <div class="inp-row" style="margin-top:12px">
+      <div><label class="fld">價格</label><input class="inp" id="it-price" value="${ea(it.price)}" placeholder="₩15,000"></div>
+      <div><label class="fld">備註</label><input class="inp" id="it-note" value="${ea(it.note)}" placeholder="尺寸、顏色…"></div>
+    </div>
+    <div class="modal-acts">
+      ${!isNew?`<button class="btn-del" onclick="delItem(${si},${ii});closeModal()">刪除</button>`:''}
+      <button class="btn-cancel" onclick="${isNew?`delItem(${si},${ii});`:''}closeModal()">取消</button>
+      <button class="btn-save" onclick="saveItem(${si},${ii})">儲存</button>
+    </div>`);
+  window._editCtx={si,ii};
+  setTimeout(()=>document.getElementById('it-name')?.focus(),100);
+}
+function onUrlInput(){
+  const url=document.getElementById('it-url').value.trim();
+  const box=document.getElementById('preview-box');
+  if(url){ box.className='preview-box show'; box.innerHTML=`<div class="p-text" style="color:var(--ink-soft)">點上方按鈕抓取預覽圖</div>`; }
+  else box.className='preview-box';
+}
+async function fetchPreview(){
+  const url=document.getElementById('it-url').value.trim();
+  if(!url){ alert('請先填入商品網址'); return; }
+  const btn=document.getElementById('fetch-btn');
+  const box=document.getElementById('preview-box');
+  btn.disabled=true; btn.textContent='⏳ 抓取中…';
+  box.className='preview-box show';
+  box.innerHTML=`<div class="p-text" style="color:var(--ink-soft)">讀取網頁資訊中…</div>`;
+  try{
+    const res=await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=false`);
+    const json=await res.json();
+    if(json.status==='success'&&json.data){
+      const img=json.data.image?.url||''; const title=json.data.title||url;
+      window._fetchedPreview={img,title};
+      box.innerHTML=img
+        ?`<img src="${eh(img)}" onerror="this.style.display='none'"><div class="p-text"><strong>${eh(title)}</strong></div>`
+        :`<div class="p-text">✅ ${eh(title)}<br><span style="font-size:11px;color:var(--ink-soft)">此網站無預覽圖</span></div>`;
+    } else {
+      box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 無法抓取，仍可儲存連結</div>`;
+      window._fetchedPreview=null;
+    }
+  }catch(e){
+    box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 網路錯誤，請稍後再試</div>`;
+    window._fetchedPreview=null;
+  }
+  btn.disabled=false;
+  btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> 重新抓取`;
+}
+function saveItem(si,ii){
+  const ctx=window._editCtx||{si,ii};
+  const fp=window._fetchedPreview;
+  const prev=DATA.stores[ctx.si].items[ctx.ii].preview||{img:'',title:''};
+  DATA.stores[ctx.si].items[ctx.ii]={
+    name:v('it-name'),url:v('it-url'),price:v('it-price'),note:v('it-note'),
+    done:DATA.stores[ctx.si].items[ctx.ii].done||false,
+    preview:fp?{img:fp.img,title:fp.title}:(fp===null?{img:'',title:''}:prev)
+  };
+  window._fetchedPreview=undefined;
+  fbSet('stores',DATA.stores); closeModal();
+}
+function delItem(si,ii){ if(!confirm(`確定刪除「${DATA.stores[si].items[ii].name||'此品項'}」？`)) return; DATA.stores[si].items.splice(ii,1); fbSet('stores',DATA.stores); }
+
+// ── Toggle done ──
+function toggleItem(si,ii){
+  DATA.stores[si].items[ii].done=!DATA.stores[si].items[ii].done;
+  fbSet(`stores/${si}/items/${ii}/done`,DATA.stores[si].items[ii].done);
+}
+
+// ── Utils ──
+function eh(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ea(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function v(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+function shortUrl(u){ try{ const p=new URL(u); return p.hostname.replace(/^www\./,'')+(p.pathname.length>1?p.pathname.slice(0,18)+(p.pathname.length>18?'…':''):''); }catch{ return u.slice(0,30); } }
+</script>
+</body>
+</html>
