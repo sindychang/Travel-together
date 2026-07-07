@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>首爾醫美戰帖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FAF8F5;
+    --panel: #FFFFFF;
+    --ink: #2C2A28;
+    --ink-soft: #6B6560;
+    --rose: #B5697A;
+    --rose-deep: #8C4A5A;
+    --sage: #8A9A7E;
+    --line: #E8E2DA;
+    --warn-bg: #FBF0EC;
+    --warn-line: #E3B7A8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height:1.65;
+    padding-bottom:60px;
+  }
+  .hero{
+    padding:48px 24px 32px;
+    text-align:center;
+    background:linear-gradient(180deg, #F3E7E4 0%, var(--bg) 100%);
+    border-bottom:1px solid var(--line);
+  }
+  .hero .eyebrow{
+    letter-spacing:.2em;
+    font-size:12px;
+    color:var(--rose-deep);
+    font-weight:700;
+  }
+  .hero h1{
+    font-family:"Noto Serif TC", serif;
+    font-size:30px;
+    margin:10px 0 6px;
+    color:var(--rose-deep);
+  }
+  .hero p{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin:0;
+  }
+  .total-pill{
+    display:inline-block;
+    margin-top:18px;
+    background:var(--rose);
+    color:#fff;
+    padding:10px 22px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:15px;
+    box-shadow:0 6px 16px rgba(140,74,90,.25);
+  }
+
+  section{
+    max-width:640px;
+    margin:0 auto;
+    padding:36px 20px;
+  }
+  .section-title{
+    font-family:"Noto Serif TC", serif;
+    font-size:20px;
+    color:var(--rose-deep);
+    border-left:4px solid var(--rose);
+    padding-left:10px;
+    margin-bottom:18px;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px 18px;
+    margin-bottom:14px;
+    box-shadow:0 2px 8px rgba(0,0,0,.03);
+  }
+  .card .num{
+    display:inline-block;
+    width:24px; height:24px;
+    background:var(--sage);
+    color:#fff;
+    border-radius:50%;
+    text-align:center;
+    line-height:24px;
+    font-size:13px;
+    font-weight:700;
+    margin-right:8px;
+  }
+  .card h3{
+    margin:0 0 4px;
+    font-size:16px;
+    display:flex;
+    align-items:center;
+  }
+  .price{
+    float:right;
+    color:var(--rose-deep);
+    font-weight:700;
+    font-size:15px;
+  }
+  .loc{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin:6px 0 10px;
+    padding:6px 10px;
+    background:#F5F1EC;
+    border-radius:8px;
+  }
+  .func{
+    font-size:14px;
+  }
+  .func b{ color:var(--rose-deep); }
+
+  .calc-card{
+    background:var(--rose-deep);
+    color:#fff;
+    border-radius:14px;
+    padding:20px;
+    font-size:14px;
+  }
+  .calc-card .line{
+    display:flex;
+    justify-content:space-between;
+    padding:4px 0;
+    border-bottom:1px dashed rgba(255,255,255,.25);
+  }
+  .calc-card .final{
+    margin-top:10px;
+    font-size:20px;
+    font-weight:700;
+    text-align:center;
+  }
+
+  .script-block{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-bottom:16px;
+  }
+  .script-block h4{
+    margin:0 0 8px;
+    font-size:15px;
+    color:var(--rose-deep);
+  }
+  .quote{
+    background:#F5F1EC;
+    border-left:3px solid var(--sage);
+    padding:10px 12px;
+    border-radius:6px;
+    font-size:13.5px;
+    margin:8px 0;
+  }
+  .quote .en{ font-weight:500; }
+  .quote .kr{ color:var(--ink-soft); margin-top:4px; }
+  .note{
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+
+  .checklist-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .checklist-item.done{
+    background:#F2F5EF;
+    border-color:var(--sage);
+  }
+  .checklist-item.done .item-text{
+    text-decoration:line-through;
+    color:var(--ink-soft);
+  }
+  .checklist-item input{
+    margin-top:3px;
+    width:18px; height:18px;
+    accent-color:var(--sage);
+    flex-shrink:0;
+  }
+  .item-text b{ display:block; margin-bottom:2px; }
+  .item-text span{ font-size:13px; color:var(--ink-soft); }
+
+  .warn-card{
+    background:var(--warn-bg);
+    border:1px solid var(--warn-line);
+    border-radius:12px;
+    padding:14px 16px;
+    font-size:13.5px;
+    margin-top:16px;
+  }
+  .warn-card b{ color:#A5473A; }
+
+  footer{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-soft);
+    padding:20px;
+  }
+  .reset-btn{
+    display:block;
+    margin:18px auto 0;
+    background:none;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    padding:8px 16px;
+    border-radius:999px;
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="eyebrow">SEOUL AESTHETIC ITINERARY</div>
+  <h1>首爾醫美戰帖</h1>
+  <p>項目全對照・現場話術・生存指南</p>
+  <div class="total-pill">五項總計 約 NT$ 8,400</div>
+</div>
+
+<section>
+  <div class="section-title">一・項目、價格與位置對照</div>
+
+  <div class="card">
+    <h3><span class="num">1</span>小氣泡 Aqua Peel<span class="price">₩39,000</span></h3>
+    <div class="loc">📍 全臉，重點加強鼻子（草莓鼻區）、下巴、額頭 T 字部位</div>
+    <div class="func"><b>基礎深層清潔：</b>水針＋負壓吸力清除黑頭與角質，打通後續煥膚與導入的毛孔通道。</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">2</span>LHALA 煥膚 第五代<span class="price">₩69,000</span></h3>
+    <div class="loc">📍 全臉（避開眼周、嘴唇），延伸至下頜線與脖子上緣</div>
+    <div class="func"><b>角質拋光與控油：</b>鹼性煥膚，不剝脫不傷屏障，拋光角質、平衡皮脂，打完立即呈現水光感。</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">3</span>LDM 水滴提升 12分鐘<span class="price">₩59,000</span></h3>
+    <div class="loc">📍 全臉，含眼周修護、雙頰泛紅處與脖子</div>
+    <div class="func"><b>細胞充水與快速修護：</b>雙頻超音波把水分導入細胞，退紅穩定膚況，加強煥膚效果。</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">4</span>Coretox 咀嚼肌肉毒 50U<span class="price">₩59,000</span></h3>
+    <div class="loc">📍 雙側下頜角、咬肌最核心肥厚處　⚠️ 務必強調「打低」</div>
+    <div class="func"><b>輪廓雕塑、阻斷肌肉：</b>放鬆過度發達咬肌，收窄下半臉；Coretox 純淨型可降低抗藥性風險。</div>
+  </div>
+
+  <div class="card">
+    <h3><span class="num">5</span>Coretox 彈力肉毒 4cc<span class="price">₩89,000</span></h3>
+    <div class="loc">📍 下顎線（輪廓線）拉提，並全臉平鋪延伸至雙頰</div>
+    <div class="func"><b>全臉緊緻、順修過渡帶：</b>極淺層（皮內）點狀施打，緊緻下顎線，並改善嘴邊肉與咬肌變小後的凹陷。</div>
+  </div>
+
+  <div class="calc-card">
+    <div class="line"><span>五項小計</span><span>₩315,000</span></div>
+    <div class="line"><span>＋10% 附加稅（不可免稅）</span><span>× 1.1</span></div>
+    <div class="line"><span>含稅總價</span><span>₩346,500</span></div>
+    <div class="final">≈ NT$ 8,400 元</div>
+    <div class="note" style="color:rgba(255,255,255,.75); text-align:center; margin-top:6px;">匯率以 1 KRW ≈ 0.0242 TWD 估算，實際依刷卡當天匯率為準</div>
+  </div>
+</section>
+
+<section>
+  <div class="section-title">二・現場溝通教戰守則</div>
+
+  <div class="script-block">
+    <h4>與室長／諮詢師：堅守預算</h4>
+    <div class="quote">
+      <div class="en">「我今天只做這五個預約好的項目。皮膚最近比較敏感泛紅，熱能儀器或微整填充今天完全不考慮，請直接幫我打印這五項的結帳單。」</div>
+    </div>
+    <div class="quote">
+      <div class="en">「肉毒品牌一律要海報上的 Coretox 不含複合蛋白純淨型，不接受臨時更換品牌。」</div>
+    </div>
+  </div>
+
+  <div class="script-block">
+    <h4>與院長／操作醫生：精準監工</h4>
+    <div class="quote">
+      <div class="en">① For jaw Botox (50U): Please inject as low and back as possible near the jaw angle. I have slight temple hollowness, so please avoid injecting too high to prevent cheek gauntness.</div>
+      <div class="kr">턱 보톡스는 최대한 아래쪽과 뒤쪽(턱각 부위)에 놓아주세요. 볼패임이 생기지 않도록 부탁드립니다.</div>
+      <div class="note">說明：要求打低、打後，避免臉部凹陷或頭重腳輕。</div>
+    </div>
+    <div class="quote">
+      <div class="en">② For skin Botox (4cc): Please perform shallow, intradermal micro-injections. Please focus on the jawline but also feather it smoothly into the cheek transition area for a natural, balanced contour.</div>
+      <div class="kr">스킨보톡스는 피부 얕은 층에 촘촘히 놔주시고, 턱선 외에도 볼 주변과의 연결 부위를 자연스럽게 연결해 주세요.</div>
+      <div class="note">說明：要求打在淺層皮內，並在雙頰、顴骨下方做順修過渡。</div>
+    </div>
+    <div class="quote">
+      <div class="en">確認劑量口訣：「Is this 4cc Skin Botox and 50U Coretox?」— 順眼看一下針筒刻度是否抽滿。</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-title">三・生存指南 Checklist</div>
+  <div id="checklist"></div>
+  <button class="reset-btn" onclick="resetChecklist()">重置勾選</button>
+
+  <div class="warn-card">
+    <b>術後黃金守則：</b>肉毒施打後 4 小時內切勿平躺或劇烈運動；小氣泡／煥膚後一週內避免去角質、A醇、高濃度C，多補保濕。
+  </div>
+</section>
+
+<footer>首爾醫美戰帖 · 個人行前備忘 · 僅供自用參考</footer>
+
+<script>
+  const items = [
+    { t:"服裝", d:"穿大開領、深色、便宜好洗的上衣，脖子與下顎線會大面積敷料、消毒，可能有血點。" },
+    { t:"自助洗臉", d:"診所不幫卸妝，需自行到開放洗臉台把防曬、底妝洗乾淨，否則影響小氣泡與煥膚效果。" },
+    { t:"針劑核對", d:"醫生下針前開口確認「Is this 4cc Skin Botox and 50U Coretox?」，並看一眼針筒刻度。" },
+    { t:"皮丘心理建設", d:"4cc 彈力肉毒打完雙頰會佈滿密密麻麻的紅色小皮丘，屬正常現象，通常 2–6 小時內消退，當天避免网美餐廳。" },
+    { t:"術後 4 小時", d:"切勿完全平躺或劇烈運動，避免肉毒擴散到非預期肌肉。" },
+    { t:"術後一週保養", d:"避免去角質、A醇、高濃度美白C，加強保濕修護。" }
+  ];
+
+  const STORAGE_KEY = "seoul_aesthetic_checklist_v1";
+
+  function loadState(){
+    try{
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    }catch(e){ return {}; }
+  }
+  function saveState(state){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function render(){
+    const state = loadState();
+    const container = document.getElementById("checklist");
+    container.innerHTML = "";
+    items.forEach((item, i) => {
+      const checked = !!state[i];
+      const row = document.createElement("label");
+      row.className = "checklist-item" + (checked ? " done" : "");
+      row.innerHTML = `
+        <input type="checkbox" ${checked ? "checked" : ""} data-i="${i}">
+        <div class="item-text"><b>${item.t}</b><span>${item.d}</span></div>
+      `;
+      container.appendChild(row);
+    });
+    container.querySelectorAll("input").forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const st = loadState();
+        st[e.target.dataset.i] = e.target.checked;
+        saveState(st);
+        render();
+      });
+    });
+  }
+
+  function resetChecklist(){
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  }
+
+  render();
+</script>
+
+</body>
+</html>
