@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>首爾醫美戰帖</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAF8F5;--panel:#FFFFFF;--ink:#2C2A28;--ink-soft:#6B6560;
+  --rose:#B5697A;--rose-deep:#8C4A5A;--sage:#8A9A7E;
+  --line:#E8E2DA;--warn-bg:#FBF0EC;--warn-line:#E3B7A8;
+}
+*{box-sizing:border-box;font-family:"Noto Sans TC",-apple-system,BlinkMacSystemFont,sans-serif;}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.65;padding-bottom:60px;}
+
+/* ── Hero ── */
+.hero{padding:52px 24px 32px;text-align:center;background:linear-gradient(180deg,#F3E7E4 0%,var(--bg) 100%);border-bottom:1px solid var(--line);}
+.hero .eyebrow{letter-spacing:.2em;font-size:12px;color:var(--rose-deep);font-weight:700;}
+.hero h1{font-family:"Noto Serif TC",serif;font-size:28px;margin:10px 0 6px;color:var(--rose-deep);}
+.hero p{color:var(--ink-soft);font-size:14px;margin:0;}
+.total-pill{display:inline-block;margin-top:18px;background:var(--rose);color:#fff;padding:10px 22px;border-radius:999px;font-weight:700;font-size:15px;box-shadow:0 6px 16px rgba(140,74,90,.25);}
+
+/* ── Layout ── */
+section{max-width:640px;margin:0 auto;padding:28px 18px;}
+.section-title{font-family:"Noto Serif TC",serif;font-size:19px;color:var(--rose-deep);border-left:4px solid var(--rose);padding-left:10px;margin-bottom:16px;}
+
+/* ── Item cards ── */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.03);}
+.card .num{display:inline-block;width:22px;height:22px;background:var(--sage);color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;margin-right:7px;flex-shrink:0;}
+.card h3{margin:0 0 6px;font-size:15px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
+.price{margin-left:auto;color:var(--rose-deep);font-weight:700;font-size:14px;}
+.loc{font-size:13px;color:var(--ink-soft);margin:6px 0 10px;padding:6px 10px;background:#F5F1EC;border-radius:8px;}
+.func{font-size:14px;}
+.func b{color:var(--rose-deep);}
+
+/* ── Calc card ── */
+.calc-card{background:var(--rose-deep);color:#fff;border-radius:14px;padding:18px;font-size:14px;}
+.calc-card .cl{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.25);}
+.calc-card .final{margin-top:10px;font-size:20px;font-weight:700;text-align:center;}
+.calc-note{color:rgba(255,255,255,.75);text-align:center;margin-top:6px;font-size:12px;}
+
+/* ── Script blocks ── */
+.script-block{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;}
+.script-block h4{margin:0 0 10px;font-size:14px;color:var(--rose-deep);}
+.quote{background:#F5F1EC;border-left:3px solid var(--sage);padding:10px 12px;border-radius:6px;font-size:13.5px;margin:8px 0;}
+.quote .en{font-weight:500;}
+.quote .kr{color:var(--ink-soft);margin-top:4px;}
+.quote .note-txt{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+
+/* ── Checklist ── */
+.check-item{display:flex;align-items:flex-start;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:background .15s;}
+.check-item.done{background:#F2F5EF;border-color:var(--sage);}
+.check-item.done .item-title{text-decoration:line-through;color:var(--ink-soft);}
+.check-item input[type=checkbox]{margin-top:3px;width:18px;height:18px;accent-color:var(--sage);flex-shrink:0;cursor:pointer;}
+.item-title{font-weight:700;display:block;margin-bottom:2px;font-size:14px;}
+.item-desc{font-size:13px;color:var(--ink-soft);}
+.reset-btn{display:block;margin:12px auto 0;background:none;border:1px solid var(--line);color:var(--ink-soft);padding:8px 18px;border-radius:999px;font-size:12px;cursor:pointer;}
+
+/* ── Warn ── */
+.warn-card{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:12px;padding:14px 16px;font-size:13.5px;margin-top:16px;}
+.warn-card b{color:#A5473A;}
+
+footer{text-align:center;font-size:12px;color:var(--ink-soft);padding:20px;}
+
+/* ── Edit mode ── */
+.edit-fab{position:fixed;top:14px;right:14px;z-index:200;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--ink-soft);box-shadow:0 2px 10px rgba(0,0,0,.12);cursor:pointer;transition:all .2s;}
+.edit-fab.on{background:var(--rose-deep);color:#fff;border-color:var(--rose-deep);}
+.sync-dot{position:fixed;top:19px;right:98px;z-index:200;width:8px;height:8px;border-radius:50%;background:#ccc;}
+.sync-dot.ok{background:var(--sage);}
+.sync-dot.err{background:#dc2626;}
+
+.ea{display:none;cursor:pointer;background:none;border:1px dashed var(--rose);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--rose);margin-left:4px;line-height:1.6;}
+.edit-mode .ea{display:inline-block;}
+.add-row{display:none;width:100%;background:none;border:1.5px dashed var(--rose);color:var(--rose);border-radius:12px;padding:11px;font-size:13px;cursor:pointer;margin-top:4px;margin-bottom:14px;}
+.edit-mode .add-row{display:block;}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end;}
+.modal-bg.open{display:flex;}
+.modal-sheet{background:#fff;border-radius:20px 20px 0 0;padding:22px 20px calc(env(safe-area-inset-bottom,0px)+34px);width:100%;max-height:88vh;overflow-y:auto;}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:14px;color:var(--rose-deep);}
+.fld{display:block;font-size:11px;color:var(--ink-soft);margin:12px 0 4px;font-weight:700;letter-spacing:.05em;}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;font-family:"Noto Sans TC",sans-serif;background:#fff;color:var(--ink);}
+.inp:focus{outline:none;border-color:var(--rose);}
+textarea.inp{min-height:78px;resize:vertical;line-height:1.55;}
+.modal-acts{display:flex;gap:8px;margin-top:18px;}
+.btn-save{flex:1;background:var(--rose-deep);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-cancel{background:#F5F1EC;color:var(--ink-soft);border:none;border-radius:10px;padding:13px 18px;font-size:15px;cursor:pointer;}
+.btn-del{background:#fee2e2;color:#dc2626;border:none;border-radius:10px;padding:13px 14px;font-size:15px;cursor:pointer;}
+.quote-edit-box{background:#F9F6F2;border-radius:10px;padding:12px;margin-bottom:10px;border:1px solid var(--line);}
+.rm-btn{background:#fee2e2;border:none;border-radius:7px;padding:5px 12px;color:#dc2626;font-size:12px;cursor:pointer;margin-top:6px;}
+.add-sm-btn{width:100%;background:none;border:1.5px dashed var(--rose);color:var(--rose);border-radius:8px;padding:9px;font-size:12px;cursor:pointer;margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<button class="edit-fab" id="edit-fab" onclick="toggleEdit()">✏️ 編輯</button>
+<div class="sync-dot" id="sync-dot" title="同步狀態"></div>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="eyebrow">SEOUL AESTHETIC ITINERARY</div>
+  <h1 id="hero-title"></h1>
+  <p id="hero-subtitle"></p>
+  <div class="total-pill" id="hero-total"></div>
+  <br>
+  <button class="ea" style="margin-top:10px" onclick="editHero()">✏️ 編輯標題</button>
+</div>
+
+<!-- Section 1 -->
+<section>
+  <div class="section-title">一・項目、價格與位置對照</div>
+  <div id="items-list"></div>
+  <div id="calc-wrap"></div>
+  <button class="add-row" onclick="addItem()">＋ 新增項目</button>
+</section>
+
+<!-- Section 2 -->
+<section>
+  <div class="section-title">二・現場溝通教戰守則</div>
+  <div id="scripts-list"></div>
+  <button class="add-row" onclick="addScript()">＋ 新增段落</button>
+</section>
+
+<!-- Section 3 -->
+<section>
+  <div class="section-title">三・生存指南 Checklist</div>
+  <div id="checklist-list"></div>
+  <button class="add-row" onclick="addCheckItem()">＋ 新增清單項目</button>
+  <button class="reset-btn" onclick="resetChecklist()">重置勾選</button>
+  <div class="warn-card">
+    <span id="warn-text"></span>
+    <button class="ea" onclick="editWarn()" style="display:none" id="warn-edit-btn">✏️</button>
+  </div>
+</section>
+
+<footer id="footer-text"></footer>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal" onclick="onModalBg(event)">
+  <div class="modal-sheet" id="modal-inner"></div>
+</div>
+
+<script>
+// ── Firebase ──
+const firebaseConfig={
+  apiKey:"AIzaSyAM9fK8cOIyyTuELrTi2b5yt0Nm-1SBZ8I",
+  authDomain:"travel-together-7168a.firebaseapp.com",
+  databaseURL:"https://travel-together-7168a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"travel-together-7168a",
+  storageBucket:"travel-together-7168a.firebasestorage.app",
+  messagingSenderId:"789216457084",
+  appId:"1:789216457084:web:9386671702da5d18d434f9"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+const PATH='docs/seoul-medical';
+function fbRef(p){return db.ref(PATH+(p?'/'+p:''));}
+function fbSet(p,v){return fbRef(p).set(v);}
+
+// ── Defaults ──
+const DEFAULTS={
+  hero:{title:"首爾醫美戰帖",subtitle:"項目全對照・現場話術・生存指南",total:"五項總計 約 NT$ 8,400"},
+  items:[
+    {name:"小氣泡 Aqua Peel",price:"₩39,000",loc:"全臉，重點加強鼻子（草莓鼻區）、下巴、額頭 T 字部位",func:"**基礎深層清潔：**水針＋負壓吸力清除黑頭與角質，打通後續煥膚與導入的毛孔通道。"},
+    {name:"LHALA 煥膚 第五代",price:"₩69,000",loc:"全臉（避開眼周、嘴唇），延伸至下頜線與脖子上緣",func:"**角質拋光與控油：**鹼性煥膚，不剝脫不傷屏障，拋光角質、平衡皮脂，打完立即呈現水光感。"},
+    {name:"LDM 水滴提升 12分鐘",price:"₩59,000",loc:"全臉，含眼周修護、雙頰泛紅處與脖子",func:"**細胞充水與快速修護：**雙頻超音波把水分導入細胞，退紅穩定膚況，加強煥膚效果。"},
+    {name:"Coretox 咀嚼肌肉毒 50U",price:"₩59,000",loc:"雙側下頜角、咬肌最核心肥厚處　⚠️ 務必強調「打低」",func:"**輪廓雕塑、阻斷肌肉：**放鬆過度發達咬肌，收窄下半臉；Coretox 純淨型可降低抗藥性風險。"},
+    {name:"Coretox 彈力肉毒 4cc",price:"₩89,000",loc:"下顎線（輪廓線）拉提，並全臉平鋪延伸至雙頰",func:"**全臉緊緻、順修過渡帶：**極淺層（皮內）點狀施打，緊緻下顎線，並改善嘴邊肉與咬肌變小後的凹陷。"}
+  ],
+  calc:{
+    lines:[{label:"五項小計",val:"₩315,000"},{label:"＋10% 附加稅（不可免稅）",val:"× 1.1"},{label:"含稅總價",val:"₩346,500"}],
+    final:"≈ NT$ 8,400 元",
+    note:"匯率以 1 KRW ≈ 0.0242 TWD 估算，實際依刷卡當天匯率為準"
+  },
+  scripts:[
+    {title:"與室長／諮詢師：堅守預算",quotes:[
+      {en:"「我今天只做這五個預約好的項目。皮膚最近比較敏感泛紅，熱能儀器或微整填充今天完全不考慮，請直接幫我打印這五項的結帳單。」",kr:"",note:""},
+      {en:"「肉毒品牌一律要海報上的 Coretox 不含複合蛋白純淨型，不接受臨時更換品牌。」",kr:"",note:""}
+    ]},
+    {title:"與院長／操作醫生：精準監工",quotes:[
+      {en:"① For jaw Botox (50U): Please inject as low and back as possible near the jaw angle. I have slight temple hollowness, so please avoid injecting too high to prevent cheek gauntness.",kr:"턱 보톡스는 최대한 아래쪽과 뒤쪽(턱각 부위)에 놓아주세요. 볼패임이 생기지 않도록 부탁드립니다.",note:"說明：要求打低、打後，避免臉部凹陷或頭重腳輕。"},
+      {en:"② For skin Botox (4cc): Please perform shallow, intradermal micro-injections. Please focus on the jawline but also feather it smoothly into the cheek transition area for a natural, balanced contour.",kr:"스킨보톡스는 피부 얕은 층에 촘촘히 놔주시고, 턱선 외에도 볼 주변과의 연결 부위를 자연스럽게 연결해 주세요.",note:"說明：要求打在淺層皮內，並在雙頰、顴骨下方做順修過渡。"},
+      {en:"確認劑量口訣：「Is this 4cc Skin Botox and 50U Coretox?」— 順眼看一下針筒刻度是否抽滿。",kr:"",note:""}
+    ]}
+  ],
+  checklist_items:[
+    {t:"服裝",d:"穿大開領、深色、便宜好洗的上衣，脖子與下顎線會大面積敷料、消毒，可能有血點。"},
+    {t:"自助洗臉",d:"診所不幫卸妝，需自行到開放洗臉台把防曬、底妝洗乾淨，否則影響小氣泡與煥膚效果。"},
+    {t:"針劑核對",d:"醫生下針前開口確認「Is this 4cc Skin Botox and 50U Coretox?」，並看一眼針筒刻度。"},
+    {t:"皮丘心理建設",d:"4cc 彈力肉毒打完雙頰會佈滿密密麻麻的紅色小皮丘，屬正常現象，通常 2–6 小時內消退，當天避免網美餐廳。"},
+    {t:"術後 4 小時",d:"切勿完全平躺或劇烈運動，避免肉毒擴散到非預期肌肉。"},
+    {t:"術後一週保養",d:"避免去角質、A醇、高濃度美白C，加強保濕修護。"}
+  ],
+  checklist_state:{},
+  warn:"術後黃金守則：肉毒施打後 4 小時內切勿平躺或劇烈運動；小氣泡／煥膚後一週內避免去角質、A醇、高濃度C，多補保濕。",
+  footer:"首爾醫美戰帖 · 個人行前備忘 · 僅供自用參考"
+};
+
+// ── State ──
+let DATA=JSON.parse(JSON.stringify(DEFAULTS));
+let EDIT_MODE=false;
+let MODAL_OPEN=false;
+
+// ── Helper: array normalize from Firebase ──
+function toArr(v){
+  if(!v) return [];
+  if(Array.isArray(v)) return v;
+  return Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]);
+}
+
+// ── Firebase init ──
+const dot=document.getElementById('sync-dot');
+fbRef().once('value').then(snap=>{
+  const val=snap.val();
+  if(!val){
+    fbRef().set(DEFAULTS).then(()=>renderAll());
+  } else {
+    mergeData(val);
+    renderAll();
+  }
+  dot.className='sync-dot ok';
+}).catch(()=>{ dot.className='sync-dot err'; renderAll(); });
+
+// Realtime listener
+fbRef().on('value',snap=>{
+  const val=snap.val();
+  if(!val) return;
+  mergeData(val);
+  if(!MODAL_OPEN) renderAll();
+  dot.className='sync-dot ok';
+});
+
+function mergeData(val){
+  DATA={...DEFAULTS,...val};
+  DATA.hero={...DEFAULTS.hero,...(val.hero||{})};
+  DATA.calc={...DEFAULTS.calc,...(val.calc||{})};
+  DATA.calc.lines=toArr(val.calc&&val.calc.lines)||DEFAULTS.calc.lines;
+  DATA.items=toArr(val.items)||DEFAULTS.items;
+  DATA.scripts=toArr(val.scripts)||DEFAULTS.scripts;
+  DATA.scripts=DATA.scripts.map(s=>({...s,quotes:toArr(s.quotes)||[]}));
+  DATA.checklist_items=toArr(val.checklist_items)||DEFAULTS.checklist_items;
+  DATA.checklist_state=val.checklist_state||{};
+  DATA.warn=val.warn||DEFAULTS.warn;
+  DATA.footer=val.footer||DEFAULTS.footer;
+}
+
+// ── Render ──
+function renderAll(){
+  renderHero();
+  renderItems();
+  renderCalc();
+  renderScripts();
+  renderChecklist();
+  document.getElementById('warn-text').textContent=DATA.warn;
+  document.getElementById('warn-edit-btn').style.display=EDIT_MODE?'inline-block':'none';
+  document.getElementById('footer-text').textContent=DATA.footer;
+}
+
+function renderHero(){
+  document.getElementById('hero-title').textContent=DATA.hero.title;
+  document.getElementById('hero-subtitle').textContent=DATA.hero.subtitle;
+  document.getElementById('hero-total').textContent=DATA.hero.total;
+}
+
+function renderItems(){
+  document.getElementById('items-list').innerHTML=DATA.items.map((it,i)=>`
+    <div class="card">
+      <h3>
+        <span class="num">${i+1}</span>
+        ${eh(it.name)}
+        <span class="price">${eh(it.price)}</span>
+        <button class="ea" onclick="editItem(${i})">✏️ 編輯</button>
+        <button class="ea" style="color:#dc2626;border-color:#dc2626" onclick="delItem(${i})">🗑</button>
+      </h3>
+      <div class="loc">📍 ${eh(it.loc)}</div>
+      <div class="func">${funcHtml(it.func)}</div>
+    </div>
+  `).join('');
+}
+
+function renderCalc(){
+  const c=DATA.calc;
+  document.getElementById('calc-wrap').innerHTML=`
+    <div class="calc-card">
+      ${c.lines.map(l=>`<div class="cl"><span>${eh(l.label)}</span><span>${eh(l.val)}</span></div>`).join('')}
+      <div class="final">${eh(c.final)}</div>
+      <div class="calc-note">${eh(c.note)}</div>
+      <div style="text-align:center;margin-top:12px">
+        <button class="ea" style="color:#fff;border-color:rgba(255,255,255,.6);display:${EDIT_MODE?'inline-block':'none'}" onclick="editCalc()">✏️ 編輯費用</button>
+      </div>
+    </div>`;
+}
+
+function renderScripts(){
+  document.getElementById('scripts-list').innerHTML=DATA.scripts.map((s,si)=>`
+    <div class="script-block">
+      <h4>${eh(s.title)}
+        <button class="ea" onclick="editScript(${si})">✏️ 編輯</button>
+        <button class="ea" style="color:#dc2626;border-color:#dc2626" onclick="delScript(${si})">🗑</button>
+      </h4>
+      ${(s.quotes||[]).map(q=>`
+        <div class="quote">
+          ${q.en?`<div class="en">${eh(q.en)}</div>`:''}
+          ${q.kr?`<div class="kr">${eh(q.kr)}</div>`:''}
+          ${q.note?`<div class="note-txt">${eh(q.note)}</div>`:''}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function renderChecklist(){
+  const state=DATA.checklist_state||{};
+  document.getElementById('checklist-list').innerHTML=DATA.checklist_items.map((it,i)=>{
+    const done=!!state[i];
+    return `
+      <div class="check-item${done?' done':''}" onclick="toggleCheck(${i})">
+        <input type="checkbox"${done?' checked':''} onclick="event.stopPropagation();toggleCheck(${i})">
+        <div style="flex:1">
+          <span class="item-title">${eh(it.t)}</span>
+          <span class="item-desc">${eh(it.d)}</span>
+        </div>
+        <button class="ea" onclick="event.stopPropagation();editCheckItem(${i})">✏️</button>
+        <button class="ea" style="color:#dc2626;border-color:#dc2626" onclick="event.stopPropagation();delCheckItem(${i})">🗑</button>
+      </div>`;
+  }).join('');
+}
+
+// ── Edit mode toggle ──
+function toggleEdit(){
+  EDIT_MODE=!EDIT_MODE;
+  const fab=document.getElementById('edit-fab');
+  fab.textContent=EDIT_MODE?'🔒 完成':'✏️ 編輯';
+  fab.classList.toggle('on',EDIT_MODE);
+  document.body.classList.toggle('edit-mode',EDIT_MODE);
+  renderAll();
+}
+
+// ── Modal ──
+function openModal(html){
+  document.getElementById('modal-inner').innerHTML=html;
+  document.getElementById('modal').classList.add('open');
+  MODAL_OPEN=true;
+}
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+  MODAL_OPEN=false;
+  renderAll();
+}
+function onModalBg(e){ if(e.target===document.getElementById('modal')) closeModal(); }
+
+// ── Hero ──
+function editHero(){
+  if(!EDIT_MODE) return;
+  const h=DATA.hero;
+  openModal(`<div class="modal-title">編輯標題區</div>
+    <label class="fld">主標題</label><input class="inp" id="h-t" value="${ea(h.title)}">
+    <label class="fld">副標題</label><input class="inp" id="h-s" value="${ea(h.subtitle)}">
+    <label class="fld">費用標籤文字</label><input class="inp" id="h-p" value="${ea(h.total)}">
+    <div class="modal-acts">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveHero()">儲存</button>
+    </div>`);
+}
+function saveHero(){
+  fbSet('hero',{title:v('h-t'),subtitle:v('h-s'),total:v('h-p')});
+  closeModal();
+}
+
+// ── Items ──
+function editItem(i){
+  if(!EDIT_MODE) return;
+  const it=DATA.items[i];
+  openModal(`<div class="modal-title">編輯項目 ${i+1}</div>
+    <label class="fld">項目名稱</label><input class="inp" id="i-name" value="${ea(it.name)}">
+    <label class="fld">價格（例 ₩39,000）</label><input class="inp" id="i-price" value="${ea(it.price)}">
+    <label class="fld">施打位置</label><textarea class="inp" id="i-loc">${eh(it.loc)}</textarea>
+    <label class="fld">功效說明（用 **粗體** 標記重點）</label>
+    <textarea class="inp" id="i-func">${eh(it.func.replace(/<b>/g,'**').replace(/<\/b>/g,'**'))}</textarea>
+    <div class="modal-acts">
+      <button class="btn-del" onclick="delItem(${i});closeModal()">刪除</button>
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveItem(${i})">儲存</button>
+    </div>`);
+}
+function saveItem(i){
+  DATA.items[i]={name:v('i-name'),price:v('i-price'),loc:v('i-loc'),func:v('i-func').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')};
+  fbSet('items',DATA.items);
+  closeModal();
+}
+function addItem(){
+  DATA.items.push({name:"新項目",price:"₩0",loc:"",func:""});
+  fbSet('items',DATA.items);
+  setTimeout(()=>editItem(DATA.items.length-1),400);
+}
+function delItem(i){
+  if(!confirm('確定要刪除此項目？')) return;
+  DATA.items.splice(i,1);
+  fbSet('items',DATA.items);
+}
+
+// ── Calc ──
+function editCalc(){
+  if(!EDIT_MODE) return;
+  const c=DATA.calc;
+  openModal(`<div class="modal-title">編輯費用計算</div>
+    <label class="fld">費用明細</label>
+    <div id="calc-lines">
+      ${c.lines.map((l,i)=>`
+        <div style="display:flex;gap:6px;margin-bottom:7px">
+          <input class="inp" placeholder="項目" style="flex:2" id="cl-l-${i}" value="${ea(l.label)}">
+          <input class="inp" placeholder="金額" style="flex:1" id="cl-v-${i}" value="${ea(l.val)}">
+          <button onclick="rmCalcLine(${i})" style="background:#fee2e2;border:none;border-radius:8px;padding:0 10px;color:#dc2626;font-size:17px;cursor:pointer">×</button>
+        </div>`).join('')}
+    </div>
+    <button class="add-sm-btn" onclick="addCalcLine()">＋ 新增行</button>
+    <label class="fld">最終總計顯示</label><input class="inp" id="c-final" value="${ea(c.final)}">
+    <label class="fld">備註</label><input class="inp" id="c-note" value="${ea(c.note)}">
+    <div class="modal-acts">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveCalc()">儲存</button>
+    </div>`);
+}
+function addCalcLine(){ DATA.calc.lines.push({label:"",val:""}); editCalc(); }
+function rmCalcLine(i){ DATA.calc.lines.splice(i,1); editCalc(); }
+function saveCalc(){
+  const lines=DATA.calc.lines.map((_,i)=>({label:v(`cl-l-${i}`),val:v(`cl-v-${i}`)}));
+  fbSet('calc',{lines,final:v('c-final'),note:v('c-note')});
+  closeModal();
+}
+
+// ── Scripts ──
+function editScript(si){
+  if(!EDIT_MODE) return;
+  const s=DATA.scripts[si];
+  openModal(`<div class="modal-title">編輯段落</div>
+    <label class="fld">段落標題</label><input class="inp" id="s-title" value="${ea(s.title)}">
+    <label class="fld" style="margin-top:14px">話術列表</label>
+    ${(s.quotes||[]).map((q,qi)=>`
+      <div class="quote-edit-box">
+        <label class="fld" style="margin-top:0">中文說明</label>
+        <textarea class="inp" id="q-en-${qi}" style="min-height:60px">${eh(q.en)}</textarea>
+        <label class="fld">韓文（選填）</label>
+        <textarea class="inp" id="q-kr-${qi}" style="min-height:50px">${eh(q.kr||'')}</textarea>
+        <label class="fld">小提醒（選填）</label>
+        <input class="inp" id="q-note-${qi}" value="${ea(q.note||'')}">
+        <button class="rm-btn" onclick="rmQuote(${si},${qi})">刪除此話術</button>
+      </div>`).join('')}
+    <button class="add-sm-btn" onclick="addQuote(${si})">＋ 新增話術</button>
+    <div class="modal-acts">
+      <button class="btn-del" onclick="delScript(${si});closeModal()">刪除段落</button>
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveScript(${si})">儲存</button>
+    </div>`);
+}
+function saveScript(si){
+  const qs=DATA.scripts[si].quotes;
+  DATA.scripts[si]={
+    title:v('s-title'),
+    quotes:qs.map((_,qi)=>({en:v(`q-en-${qi}`),kr:v(`q-kr-${qi}`),note:v(`q-note-${qi}`)}))
+  };
+  fbSet('scripts',DATA.scripts);
+  closeModal();
+}
+function addQuote(si){ DATA.scripts[si].quotes.push({en:"",kr:"",note:""}); editScript(si); }
+function rmQuote(si,qi){ DATA.scripts[si].quotes.splice(qi,1); editScript(si); }
+function addScript(){ DATA.scripts.push({title:"新段落",quotes:[{en:"",kr:"",note:""}]}); fbSet('scripts',DATA.scripts); setTimeout(()=>editScript(DATA.scripts.length-1),400); }
+function delScript(si){ if(!confirm('確定要刪除此段落？')) return; DATA.scripts.splice(si,1); fbSet('scripts',DATA.scripts); }
+
+// ── Checklist ──
+function toggleCheck(i){
+  const state={...DATA.checklist_state};
+  state[i]=!state[i];
+  fbSet('checklist_state',state);
+}
+function resetChecklist(){ if(!confirm('確定重置所有勾選？')) return; fbSet('checklist_state',{}); }
+function editCheckItem(i){
+  if(!EDIT_MODE) return;
+  const it=DATA.checklist_items[i];
+  openModal(`<div class="modal-title">編輯清單項目</div>
+    <label class="fld">標題</label><input class="inp" id="ci-t" value="${ea(it.t)}">
+    <label class="fld">說明</label><textarea class="inp" id="ci-d">${eh(it.d)}</textarea>
+    <div class="modal-acts">
+      <button class="btn-del" onclick="delCheckItem(${i});closeModal()">刪除</button>
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="saveCheckItem(${i})">儲存</button>
+    </div>`);
+}
+function saveCheckItem(i){ DATA.checklist_items[i]={t:v('ci-t'),d:v('ci-d')}; fbSet('checklist_items',DATA.checklist_items); closeModal(); }
+function addCheckItem(){ DATA.checklist_items.push({t:"新項目",d:""}); fbSet('checklist_items',DATA.checklist_items); setTimeout(()=>editCheckItem(DATA.checklist_items.length-1),400); }
+function delCheckItem(i){
+  if(!confirm('確定要刪除？')) return;
+  DATA.checklist_items.splice(i,1);
+  const os=DATA.checklist_state||{}, ns={};
+  Object.keys(os).forEach(k=>{ const n=+k; if(n<i) ns[n]=os[k]; else if(n>i) ns[n-1]=os[k]; });
+  fbSet('checklist_items',DATA.checklist_items);
+  fbSet('checklist_state',ns);
+}
+
+// ── Warn ──
+function editWarn(){
+  if(!EDIT_MODE) return;
+  openModal(`<div class="modal-title">編輯術後提醒</div>
+    <textarea class="inp" id="e-warn" style="min-height:100px">${eh(DATA.warn)}</textarea>
+    <div class="modal-acts">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" onclick="fbSet('warn',v('e-warn'));closeModal()">儲存</button>
+    </div>`);
+}
+
+// ── Utils ──
+function eh(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ea(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function v(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+function funcHtml(s){ return String(s||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>'); }
+</script>
+</body>
+</html>
