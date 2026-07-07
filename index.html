@@ -759,7 +759,7 @@ const TYPES={
 };
 const CATS=TYPES; // 收藏類別同行程類別
 const MODES={walk:['步行','walk'],transit:['大眾運輸','navigation'],drive:['開車','truck'],bike:['單車','wind'],taxi:['計程車','send']};
-const SECT={need:['大家的需求','message-circle'],notice:['注意事項','alert-circle'],pack:['必帶清單','package'],link:['實用連結','link']};
+const SECT={need:['大家的需求','message-circle'],pack:['注意事項','alert-circle'],link:['實用連結','link']};
 function getSectLabel(sec){ return (DATA.sectLabels&&DATA.sectLabels[ACTIVE]&&DATA.sectLabels[ACTIVE][sec])||SECT[sec][0]; }
 function renameSect(sec){
   const cur=getSectLabel(sec);
@@ -776,14 +776,75 @@ function typePill(type){
   return `<span class="pill ${t.cls}">${fi(t.icon,12)} ${t.lbl}</span>`;
 }
 
-function mapsSearchUrl(q){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q); }
+const KOREA_KW=['首爾','서울','Seoul','釜山','부산','Busan','濟州','제주','Jeju','仁川','인천','Incheon','大邱','대구','大田','대전','光州','광주','韓國','한국','Korea','강남','홍대','명동','이태원','동대문'];
+function isKoreaTrip(dest){ if(!dest)return false; const d=dest.toLowerCase(); return KOREA_KW.some(k=>d.includes(k.toLowerCase()))||/[가-힯]/.test(dest); }
+function _useNaver(){ return !!(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].useNaver); }
+function mapsSearchUrl(q){ if(_useNaver()) return 'https://map.naver.com/v5/search/'+encodeURIComponent(q); return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q); }
 function mapsEmbedUrl(q){ return 'https://maps.google.com/maps?q='+encodeURIComponent(q)+'&z=15&output=embed'; }
-function mapsDirUrl(from,to,mode){ const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit'; return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(from)+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function mapsDirUrl(from,to,mode){ if(_useNaver()) return 'https://map.naver.com/v5/search/'+encodeURIComponent(to); const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit'; return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(from)+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function _mercToLatLng(x,y){return{lat:Math.atan(Math.exp(y*Math.PI/20037508.34))*360/Math.PI-90,lng:x/20037508.34*180};}
+function extractCoordsFromUrl(url){
+  if(!url) return null;
+  const m1=url.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m1) return {lat:parseFloat(m1[1]),lng:parseFloat(m1[2])};
+  const m2=url.match(/[?&]q=(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m2) return {lat:parseFloat(m2[1]),lng:parseFloat(m2[2])};
+  const m3=url.match(/maps\/place\/[^/]+\/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+  if(m3) return {lat:parseFloat(m3[1]),lng:parseFloat(m3[2])};
+  // Naver Maps: c={webMercatorX},{webMercatorY},... (reject zoom-only like c=15,0)
+  const m4=url.match(/[?&]c=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if(m4){const x=parseFloat(m4[1]),y=parseFloat(m4[2]);if(x===0||y===0)return null;if(Math.abs(x)>1000){const c=_mercToLatLng(x,y);if(Math.abs(c.lat)<=90&&Math.abs(c.lng)<=180)return c;}else if(Math.abs(x)<=180&&Math.abs(y)<=90)return{lat:y,lng:x};}
+  return null;
+}
+function naverRoute(fromName,toName,fromUrl,toUrl){
+  const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+  const fc=extractCoordsFromUrl(fromUrl||''),tc=extractCoordsFromUrl(toUrl||'');
+  const isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  let nmapUrl,webUrl;
+  if(fc&&tc) nmapUrl='nmap://route/public?slat='+fc.lat.toFixed(6)+'&slng='+fc.lng.toFixed(6)+'&sname='+encodeURIComponent(fromName)+'&dlat='+tc.lat.toFixed(6)+'&dlng='+tc.lng.toFixed(6)+'&dname='+encodeURIComponent(toName)+'&appname=kr.naver.map';
+  else nmapUrl='nmap://route/public?squery='+encodeURIComponent((fromName||'')+(dest?' '+dest:''))+'&dquery='+encodeURIComponent((toName||'')+(dest?' '+dest:''))+'&appname=kr.naver.map';
+  webUrl=(toUrl&&(toUrl.includes('map.naver.com')||toUrl.includes('naver.me')))?toUrl:'https://map.naver.com/p/search/'+encodeURIComponent((toName||'')+(dest?' '+dest:''));
+  if(isMobile) window.location.href=nmapUrl;
+  else window.open(webUrl,'_blank');
+}
 function getItemNavUrl(fromItem,toItem,mode){
   const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+  if(_useNaver()){
+    const fc=extractCoordsFromUrl(fromItem.mapUrl||''),tc=extractCoordsFromUrl(toItem.mapUrl||'');
+    if(fc&&tc) return 'nmap://route/public?slat='+fc.lat.toFixed(6)+'&slng='+fc.lng.toFixed(6)+'&sname='+encodeURIComponent(fromItem.name||'출발지')+'&dlat='+tc.lat.toFixed(6)+'&dlng='+tc.lng.toFixed(6)+'&dname='+encodeURIComponent(toItem.name||'목적지')+'&appname=kr.naver.map';
+    return 'https://map.naver.com/v5/search/'+encodeURIComponent((toItem.name||'')+(dest?' '+dest:''));
+  }
   const pt=item=>{const c=extractCoordsFromUrl(item.mapUrl||'');if(c)return c.lat+','+c.lng;return encodeURIComponent((item.name||'')+(dest?' '+dest:''));};
   const m={walk:'walking',transit:'transit',drive:'driving',bike:'bicycling',taxi:'driving'}[mode]||'transit';
   return 'https://www.google.com/maps/dir/?api=1&origin='+pt(fromItem)+'&destination='+pt(toItem)+'&travelmode='+m;
+}
+function openDayRoute(dayId){
+  const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId],'order').filter(it=>it.name);
+  if(items.length<2){toast('至少需要 2 個景點才能建立路線');return;}
+  const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
+  if(_useNaver()){
+    const fc=extractCoordsFromUrl(items[0].mapUrl||''),lc=extractCoordsFromUrl(items[items.length-1].mapUrl||'');
+    let url;
+    if(fc&&lc) url='nmap://route/public?slat='+fc.lat.toFixed(6)+'&slng='+fc.lng.toFixed(6)+'&sname='+encodeURIComponent(items[0].name||'출발지')+'&dlat='+lc.lat.toFixed(6)+'&dlng='+lc.lng.toFixed(6)+'&dname='+encodeURIComponent(items[items.length-1].name||'목적지')+'&appname=kr.naver.map';
+    else url='https://map.naver.com/v5/search/'+encodeURIComponent((items[items.length-1].name||'')+(dest?' '+dest:''));
+    window.open(url,'_blank'); return;
+  }
+  const getPoint=(item)=>{
+    const c=extractCoordsFromUrl(item.mapUrl||'');
+    if(c) return c.lat+','+c.lng;
+    return encodeURIComponent((item.name||'')+(dest?' '+dest:''));
+  };
+  const pts=items.map(getPoint);
+  const origin=pts[0],destination=pts[pts.length-1];
+  const mid=pts.slice(1,-1).slice(0,7);
+  let url='https://www.google.com/maps/dir/?api=1&origin='+origin+'&destination='+destination+'&travelmode=transit';
+  if(mid.length) url+='&waypoints='+mid.join('|');
+  window.open(url,'_blank');
+}
+function detectKorea(val,setChecked){
+  const ok=isKoreaTrip(val); const el=$('naver-toggle'); if(!el)return;
+  el.style.display=ok?'block':'none';
+  if(ok&&setChecked&&$('f-naver')) $('f-naver').checked=true;
 }
 function sortedBy(obj,key){ if(!obj)return[]; return Object.keys(obj).map(k=>Object.assign({_id:k},obj[k])).sort((a,b)=>(a[key]||0)-(b[key]||0)); }
 function appPrompt(title,def,cb){
@@ -812,7 +873,7 @@ function _cdlgSubmit(){const v=$('cdlg-in')?.value;const cb=window._cdlgCb;close
 function _cdlgConfirm(){const cb=window._cdlgCb;closeCDialog();if(cb)cb();}
 function confirmDel(msg,fn){ appConfirm(msg,fn); }
 function fmtDate(d){ const dt=new Date(d+'T00:00'); const w=['日','一','二','三','四','五','六'][dt.getDay()]; return d.slice(5)+' (週'+w+')'; }
-function fmtDateShort(d){ if(!d)return''; const dt=new Date(d+'T00:00'); return (dt.getMonth()+1)+'/'+(dt.getDate()); }
+function fmtDateShort(d){ if(!d)return''; const dt=d.includes('T')?new Date(d):new Date(d+'T00:00'); const base=(dt.getMonth()+1)+'/'+(dt.getDate()); if(d.includes('T')){return base+' '+(dt.getHours()+'').padStart(2,'0')+':'+(dt.getMinutes()+'').padStart(2,'0');} return base; }
 function fmtTs(ts){ if(!ts)return''; const d=new Date(ts); return d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
 
 /* ════════════ 總渲染 ════════════ */
@@ -825,7 +886,7 @@ function renderAll(){
   $('tb-sub').textContent=trip?(esc(trip.dest||'')+(trip.startDate?' · '+trip.startDate.replace(/-/g,'/')+(trip.endDate?'~'+trip.endDate.replace(/-/g,'/'):'')+' ':' ') ):'一起規劃完美旅程';
   updateSyncBadge(!!LAST_SYNC);
   // nav
-  const navDef=[['trips','compass','旅程'],['itin','calendar','行程'],['places','bookmark','收藏'],['memo','check-square','備忘'],['tools','settings','工具']];
+  const navDef=[['trips','compass','旅程'],['itin','calendar','行程'],['places','bookmark','收藏'],['memo','check-square','記事'],['tools','settings','工具']];
   $('nav').innerHTML=navDef.map(([p,icon,lab])=>`<button class="nav-item${CURPAGE===p?' active':''}" data-page="${p}" onclick="go('${p}')"><span class="ico">${fi(icon,22)}</span><span class="lab">${lab}</span></button>`).join('');
   if(CURPAGE==='trips') renderTrips();
   else if(CURPAGE==='itin') renderItin();
@@ -910,7 +971,14 @@ function editTrip(id){
       <button data-v="international" class="${tripType==='international'?'on':''}" onclick="segPick('trip-type-seg','international')">✈️ 國際旅遊</button>
     </div>
     <label class="fld">旅程名稱</label><input class="tag-input" id="f-name" placeholder="例：東京賞櫻 2026" value="${esc(t.name||'')}">
-    <label class="fld">目的地</label><input class="tag-input" id="f-dest" placeholder="例：東京、首爾" value="${esc(t.dest||'')}">
+    <label class="fld">目的地</label><input class="tag-input" id="f-dest" placeholder="例：東京、首爾" value="${esc(t.dest||'')}" oninput="detectKorea(this.value,true)">
+    <div id="naver-toggle" style="display:none;margin-top:4px;margin-bottom:4px;padding:9px 12px;background:#e8f5e9;border-radius:10px;border:1.5px solid #a5d6a7">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f-naver" style="width:16px;height:16px;accent-color:#2e7d32">
+        <span style="font-size:13px;font-weight:700;color:#2e7d32">🗺️ 使用 Naver 地圖（韓國旅遊推薦）</span>
+      </label>
+      <div style="font-size:11px;color:#388e3c;margin-top:4px;margin-left:24px">景點地圖、查路線、整天路線將改用 Naver Maps</div>
+    </div>
     <label class="fld">出發 ～ 回程日期</label>
     <div class="cal-sel-info">
       <div class="cal-sel-box${sDate?' cal-active':''}" id="cal-sel-start">${sDate?sDate.slice(5).replace('-','/'):'點選出發日'}</div>
@@ -925,7 +993,7 @@ function editTrip(id){
     <input class="tag-input" id="f-code" placeholder="例：SEOUL2026（留空則所有人都看得到）" value="${esc(t.inviteCode||'')}" style="text-transform:uppercase">
     <div style="font-size:11px;color:var(--text-muted);margin:-4px 2px 10px;line-height:1.5">設定後，此旅程只會對輸入邀請碼的人顯示</div>
     <div class="modal-acts"><button class="btn gray" style="flex:1" onclick="closeModal()">取消</button><button class="btn" style="flex:2" onclick="saveTrip('${id||''}')">儲存</button></div>`);
-  setTimeout(renderTripCal,0);
+  setTimeout(()=>{ renderTripCal(); detectKorea(t.dest||'',false); if(t.useNaver&&$('f-naver'))$('f-naver').checked=true; },0);
 }
 function renderTripCal(){
   const el=$('trip-cal'); if(!el)return;
@@ -973,7 +1041,8 @@ function saveTrip(id){
   if(id) autoSnapshot('編輯旅程');
   const type=_seg['trip-type-seg']||(document.querySelector('#trip-type-seg button.on')?.dataset.v)||'international';
   const inviteCode=($('f-code').value||'').trim().toUpperCase();
-  const obj={name,type,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase(),inviteCode,updatedBy:ME,updatedAt:Date.now()};
+  const useNaver=!!($('f-naver')&&$('f-naver').checked);
+  const obj={name,type,dest:$('f-dest').value.trim(),startDate:$('f-start').value,endDate:$('f-end').value,currency:$('f-cur').value.trim().toUpperCase(),inviteCode,useNaver,updatedBy:ME,updatedAt:Date.now()};
   const isNew=!id;
   if(isNew){ id=uid(); obj.createdAt=Date.now(); fbSet('trips/'+id,obj); autoCreateDays(id,obj.startDate,obj.endDate); ACTIVE=id; localStorage.setItem('tv_trip',id); syncMe(); unlockTrip(id); }
   else { fbUpdate('trips/'+id,obj); if(inviteCode) unlockTrip(id); }
@@ -989,7 +1058,7 @@ function autoCreateDays(tripId,start,end){
 }
 
 /* ════════════ 行程頁 ════════════ */
-let _openDays={};
+let _openDays={}, _openPolls={}, _memoOpen={};
 let _flightsOpen=false;
 function renderItin(){
   if(!ACTIVE){ $('itin-wrap').innerHTML=`<div class="empty"><span class="big">${fi('calendar',40)}</span>請先到「旅程」選一趟旅程</div>`; return; }
@@ -1061,7 +1130,7 @@ function renderItin(){
           const nx=items[ii+1]; const md=MODES[it.transitMode]||MODES.transit;
           h+=`<div class="transit"><span>${fi(md[1],13)}</span>${it.transitMin?`<span>${esc(it.transitMin)} 分</span>`:''}
             <span class="tline"></span>
-            <a class="mini-link" style="background:none;padding:2px" href="${getItemNavUrl(it,nx,it.transitMode)}" target="_blank">查路線</a></div>`;
+            ${_useNaver()?`<span class="mini-link" style="background:none;padding:2px;cursor:pointer" data-fn="${esc(it.name||'')}" data-tn="${esc(nx.name||'')}" data-fu="${esc(it.mapUrl||'')}" data-tu="${esc(nx.mapUrl||'')}" onclick="naverRoute(this.dataset.fn,this.dataset.tn,this.dataset.fu,this.dataset.tu)">查路線</span>`:`<a class="mini-link" style="background:none;padding:2px" href="${getItemNavUrl(it,nx,it.transitMode)}" target="_blank">查路線</a>`}</div>`;
         }
       });
       h+=`</div></div>`;
@@ -1429,25 +1498,26 @@ function quickAddDiscover(idx){
 }
 
 /* ════════════ 備忘頁（待辦 + 備忘錄） ════════════ */
-let _memoTab='todo';
+let _memoTab='memo';
 function renderMemo(){
   if(!ACTIVE){ $('memo-wrap').innerHTML=`<div class="empty"><span class="big">${fi('check-square',40)}</span>請先選一趟旅程</div>`; return; }
   const todayStr=new Date().toISOString().slice(0,10);
-  // 到期提醒公告
+  const _tmr=new Date(); _tmr.setDate(_tmr.getDate()+1); const tomorrowStr=_tmr.toISOString().slice(0,10);
+  // 提醒公告
   const dueMemos=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.memos[ACTIVE][k])).filter(m=>m.dueDate&&m.dueDate<=todayStr&&!m.done);
-  const duePolls=Object.keys(DATA.polls&&DATA.polls[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.polls[ACTIVE][k])).filter(p=>p.dueDate&&p.dueDate<=todayStr);
+  const duePolls=Object.keys(DATA.polls&&DATA.polls[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.polls[ACTIVE][k])).filter(p=>{if(!p.dueDate)return false;const d=new Date(p.dueDate);if(d<new Date())return false;const ds=p.dueDate.slice(0,10);return ds===todayStr||ds===tomorrowStr;});
   const dueTodos=Object.keys(DATA.todos&&DATA.todos[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.todos[ACTIVE][k])).filter(t=>t.dueDate&&t.dueDate<=todayStr&&!t.done);
   const allDue=[...dueTodos.map(t=>({name:t.title,type:'待辦'})),...duePolls.map(p=>({name:p.title,type:'投票'})),...dueMemos.map(m=>({name:m.text||'備忘項目',type:'備忘'}))];
   let h='';
   if(allDue.length){
     h+=`<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:12px;padding:11px 14px;margin-bottom:12px">
-      <div style="font-weight:900;font-size:13px;color:#92400e;margin-bottom:6px">${fi('alert-circle',13)} 到期提醒（${allDue.length} 項）</div>
+      <div style="font-weight:900;font-size:13px;color:#92400e;margin-bottom:6px">${fi('alert-circle',13)} 提醒（${allDue.length} 項）</div>
       ${allDue.map(d=>`<div style="font-size:12px;color:#92400e;margin-bottom:2px">• [${d.type}] ${esc(d.name)}</div>`).join('')}
     </div>`;
   }
   h+=`<div class="tabs">
-    <button class="tab-btn ${_memoTab==='todo'?'on':''}" onclick="_memoTab='todo';renderMemo()">${fi('check-circle',14)} 待辦事項</button>
     <button class="tab-btn ${_memoTab==='memo'?'on':''}" onclick="_memoTab='memo';renderMemo()">${fi('file-text',14)} 備忘錄</button>
+    <button class="tab-btn ${_memoTab==='todo'?'on':''}" onclick="_memoTab='todo';renderMemo()">${fi('check-circle',14)} 待辦事項</button>
   </div>`;
   if(_memoTab==='todo') h+=renderTodosSection();
   else h+=renderMemosSection();
@@ -1489,19 +1559,40 @@ function renderTodosSection(){
   h+=`<div style="border-top:1.5px solid var(--border);margin:20px 0 0;opacity:.45"></div>`;
   h+=`<div class="row-between" style="margin:16px 0 10px"><div style="font-weight:900;font-size:14px">${fi('bar-chart-2',14)} 群組投票</div><button class="btn sm" onclick="editPoll()">${fi('plus',12)} 新增</button></div>`;
   if(polls.length){
-    const today=new Date().toISOString().slice(0,10);
+    const now=new Date();
     h+=polls.map(p=>{
       const opts=Object.keys(p.options||{}).map(k=>Object.assign({_id:k},p.options[k]));
-      const total=opts.reduce((s,o)=>s+Object.keys(o.votes||{}).length,0)||1;
-      const over=p.dueDate&&p.dueDate<today; const dueToday=p.dueDate===today;
-      return `<div class="card" style="padding:12px">
+      const totalVotes=opts.reduce((s,o)=>s+Object.keys(o.votes||{}).length,0);
+      const total=totalVotes||1;
+      const over=p.dueDate&&new Date(p.dueDate)<now;
+      const dueToday=p.dueDate&&!over&&new Date(p.dueDate).toDateString()===now.toDateString();
+      const isExpanded=over?_openPolls[p._id]===true:_openPolls[p._id]!==false;
+
+      // 已截止且收合中
+      if(over&&!isExpanded){
+        return `<div class="card" style="padding:10px 14px;opacity:0.8;cursor:pointer" onclick="_openPolls['${p._id}']=true;renderMemo()">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:999px;font-weight:700;flex-shrink:0">${fi('lock',10)} 已截止</span>
+            <span style="font-size:14px;font-weight:900;color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title)}</span>
+            <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${totalVotes}票</span>
+            <div style="display:flex;gap:2px;flex-shrink:0" onclick="event.stopPropagation()">
+              <button class="x-btn" onclick="editPoll('${p._id}')">${fi('edit-2',14)}</button>
+              <button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">${fi('trash-2',14)}</button>
+            </div>
+            ${fi('chevron-right',14)}
+          </div>
+        </div>`;
+      }
+
+      return `<div class="card" style="padding:12px${over?';opacity:0.85':''}">
         <div class="row-between" style="align-items:flex-start">
           <div style="flex:1;min-width:0;margin-right:8px">
+            ${over?`<div style="margin-bottom:4px"><span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:999px;font-weight:700;cursor:pointer" onclick="_openPolls['${p._id}']=false;renderMemo()">${fi('lock',10)} 已截止 · 點此收合</span></div>`:''}
             <span style="font-size:17px;font-weight:900;letter-spacing:-0.3px;color:var(--primary-dark)">${esc(p.title)}</span>
             ${(p.selType==='multi'||p.voteType==='anonymous')?`<div style="display:flex;gap:4px;margin-top:4px">${p.selType==='multi'?'<span style="font-size:10px;background:#e0e7ff;color:#3730a3;padding:2px 7px;border-radius:999px;font-weight:700">☑ 複選</span>':''}${p.voteType==='anonymous'?'<span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:2px 7px;border-radius:999px;font-weight:700">🕵️ 匿名</span>':''}</div>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-            ${p.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(p.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
+            ${p.dueDate?`<span class="due-tag ${over?'over':dueToday?'over':''}">${fi('clock',10)} ${over?'已截止':'截止'} ${fmtDateShort(p.dueDate)}</span>`:''}
             <div style="display:flex;gap:2px">
               <button class="x-btn" onclick="event.stopPropagation();editPoll('${p._id}')">${fi('edit-2',14)}</button>
               <button class="x-btn" onclick="confirmDel('刪除此投票？',()=>fbRemove('polls/${ACTIVE}/${p._id}'))">${fi('trash-2',14)}</button>
@@ -1509,7 +1600,7 @@ function renderTodosSection(){
           </div>
         </div>
         ${opts.map(o=>{const cnt=Object.keys(o.votes||{}).length;const pct=Math.round(cnt/total*100);const mine=o.votes&&o.votes[safeKey(ME)];
-          return `<div class="poll-opt" style="cursor:pointer" onclick="votePoll('${p._id}','${o._id}')">
+          return `<div class="poll-opt" style="cursor:${over?'default':'pointer'}" ${over?'':'onclick="votePoll(\''+p._id+'\',\''+o._id+'\')"'}>
             <div class="row-between">
               <div style="flex:1;min-width:0">
                 <span style="font-size:13px;font-weight:${mine?'900':'500'};color:${mine?'var(--primary)':'inherit'}">${mine?fi('check',12)+' ':''}${esc(o.text)}</span>
@@ -1522,7 +1613,8 @@ function renderTodosSection(){
             </div>
             <div class="poll-bar-bg"><div class="poll-bar" style="width:${pct}%"></div></div>
             ${cnt?(p.voteType==='anonymous'?`<div class="voters">${cnt}人已投票</div>`:`<div class="voters" style="cursor:pointer" onclick="showPollVoters('${p._id}','${o._id}')">${Object.keys(o.votes).map(v=>`<span class="voter-tag">${esc(v)}</span>`).join('')}</div>`):''}</div>`;}).join('')}
-        <button class="btn sm ghost full" style="margin-top:8px" onclick="addPollOpt('${p._id}')">${fi('plus',12)} 新增選項</button></div>`;
+        ${!over?`<button class="btn sm ghost full" style="margin-top:8px" onclick="addPollOpt('${p._id}')">${fi('plus',12)} 新增選項</button>`:''}
+      </div>`;
     }).join('');
   }
   return h;
@@ -1561,24 +1653,59 @@ function renderMemosSection(){
     if(!items.length) h+=`<div style="color:var(--text-muted);font-size:12px;padding:4px 6px 8px">尚無項目</div>`;
     else {
       h+=`<div class="card">`;
-      items.forEach(m=>{
+      items.forEach((m,idx)=>{
         const fmt=m.format||'text';
-        const isCheck=(fmt==='checklist');
-        h+=`<div class="memo-item">
-          <div class="memo-txt ${m.done?'done':''}" style="flex:1" onclick="editMemo('${m._id}')">
-            ${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-weight:700" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:
-              fmt==='bullets'?m.text.split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>'):
-              fmt==='checklist'?renderChecklistItems(m):
-              esc(m.text).replace(/\n/g,'<br>')}
-            ${m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:''}
-          </div>
-          <button class="x-btn" onclick="fbRemove('memos/${ACTIVE}/${m._id}')">${fi('x',14)}</button>
-        </div>`;
+        const hasTitle=!!(m.title&&m.title.trim());
+        const isOpen=_memoOpen[m._id]!==false; // default open
+        const dueBadge=m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px;font-weight:400">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:'';
+        const border=`border-bottom:${idx<items.length-1?'1px solid var(--border-light)':'none'}`;
+        // 有標題 → 可收合，標題列 + 內容分開
+        if(hasTitle){
+          let countBadge='';
+          if(fmt==='checklist'&&m.items&&m.items.length){
+            const done=m.items.filter(i=>i.d).length;
+            countBadge=`<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${done}/${m.items.length}</span>`;
+          } else if(fmt==='bullets'&&m.text){
+            const cnt=m.text.split('\n').filter(Boolean).length;
+            if(cnt>1) countBadge=`<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${cnt} 項</span>`;
+          }
+          h+=`<div style="${border}">
+            <div style="display:flex;align-items:center;gap:6px;padding:10px 12px">
+              <span onclick="_memoOpen['${m._id}']=(_memoOpen['${m._id}']!==false)?false:true;renderMemo()" style="cursor:pointer;color:var(--text-muted);flex-shrink:0;display:inline-flex;transition:transform .18s;transform:rotate(${isOpen?90:0}deg)">${fi('chevron-right',14)}</span>
+              <span style="flex:1;font-weight:700;font-size:14px;color:var(--text-primary);cursor:pointer;word-break:break-word" onclick="editMemo('${m._id}')">${esc(m.title)}${countBadge}${dueBadge}</span>
+              <button class="x-btn" onclick="deleteMemo('${m._id}','${esc(m.title)}')">${fi('x',14)}</button>
+            </div>
+            ${isOpen?`<div style="padding:0 12px 10px 32px">
+              ${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-size:13px;font-weight:600" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:
+                fmt==='bullets'?`<div style="font-size:13px;color:var(--text-secondary);line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>')}</div>`:
+                fmt==='checklist'?`<div style="font-size:13px">${renderChecklistItems(m)}</div>`:
+                `<div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.65">${esc(m.text||'').replace(/\n/g,'<br>')}</div>`}
+            </div>`:''}
+          </div>`;
+        } else {
+          // 無標題 → 直接顯示內容（舊樣式）
+          const previewLabel=m.text?(m.text.split('\n')[0].slice(0,20)+(m.text.length>20?'…':'')):'備忘';
+          h+=`<div class="memo-item" style="${border}">
+            <div class="memo-txt" style="flex:1" onclick="editMemo('${m._id}')">
+              ${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-weight:700" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:
+                fmt==='bullets'?`<div style="line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>')}</div>`:
+                fmt==='checklist'?renderChecklistItems(m):
+                esc(m.text||'').replace(/\n/g,'<br>')}
+              ${dueBadge}
+            </div>
+            <button class="x-btn" onclick="deleteMemo('${m._id}','${esc(previewLabel)}')">${fi('x',14)}</button>
+          </div>`;
+        }
       });
       h+=`</div>`;
     }
   });
   return h;
+}
+function deleteMemo(id,title){
+  if(!confirm('確定要刪除「'+title+'」？\n此操作無法復原。')) return;
+  fbRemove('memos/'+ACTIVE+'/'+id);
+  toast('已刪除');
 }
 function renderChecklistItems(m){
   if(m.items&&m.items.length){
@@ -1598,6 +1725,8 @@ function editMemo(id,sec){
   sec=m.section||sec||'need'; const fmt=m.format||'text';
   const curText=fmt==='checklist'&&m.items?m.items.map(it=>it.t).join('\n'):(m.text||'');
   modal(`<div class="modal-title">${id?'編輯':'新增'}備忘</div>
+    <label class="fld">標題（選填，填了才會顯示標題列與收合功能）</label>
+    <input class="tag-input" id="m-title" placeholder="例：明洞採買清單" value="${esc(m.title||'')}">
     <label class="fld">分類</label>
     <div class="seg" id="m-sec">${Object.keys(SECT).map(k=>`<button data-v="${k}" class="${sec===k?'on':''}" onclick="segPick('m-sec','${k}')">${fi(SECT[k][1],12)} ${getSectLabel(k)}</button>`).join('')}</div>
     <label class="fld">顯示格式</label>
@@ -1611,7 +1740,7 @@ function editMemo(id,sec){
     <label class="fld">連結（選填）</label><input class="tag-input" id="m-url" placeholder="https://" value="${esc(m.url||'')}">
     <label class="fld">截止日期（選填，到期當天會顯示提醒）</label><input type="date" class="tag-input" id="m-due" value="${esc(m.dueDate||'')}">
     ${id&&m.updatedBy?`<div class="edit-info" style="margin-top:8px">${fi('edit-2',9)} ${esc(m.updatedBy)} · ${fmtTs(m.updatedAt)}</div>`:''}
-    <div class="modal-acts">${id?`<button class="btn danger" onclick="fbRemove('memos/${ACTIVE}/${id}');closeModal()">刪除</button>`:''}
+    <div class="modal-acts">${id?`<button class="btn danger" onclick="closeModal();deleteMemo('${id}',${JSON.stringify(m.title||m.text||'此備忘')})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveMemo('${id||''}')">儲存</button></div>`);
 }
 function saveMemo(id){
@@ -1619,11 +1748,16 @@ function saveMemo(id){
   autoSnapshot(id?'編輯備忘':'新增備忘');
   const section=_seg['m-sec']||(document.querySelector('#m-sec button.on')?.dataset.v||'need');
   const format=_seg['m-fmt']||(document.querySelector('#m-fmt button.on')?.dataset.v||'text');
-  const obj={section,text:text||url,url,by:ME,format,dueDate:$('m-due').value,updatedBy:ME,updatedAt:Date.now()};
-  if(format==='checklist'){ obj.items=text.split('\n').filter(Boolean).map(t=>({t,d:false})); }
+  const titleVal=($('m-title')&&$('m-title').value.trim())||'';
+  const obj={section,title:titleVal,text:text||url,url,by:ME,format,dueDate:$('m-due').value,updatedBy:ME,updatedAt:Date.now()};
+  if(format==='checklist'){
+    const existing=(id&&DATA.memos&&DATA.memos[ACTIVE]&&DATA.memos[ACTIVE][id]&&DATA.memos[ACTIVE][id].items)||[];
+    const newLines=text.split('\n').filter(Boolean);
+    obj.items=newLines.map(t=>{const old=existing.find(e=>e.t===t);return old||{t,d:false};});
+  }
   if(!id){ const cur=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).filter(k=>DATA.memos[ACTIVE][k].section===section).length; obj.order=cur; obj.done=false; obj.createdAt=Date.now(); fbSet('memos/'+ACTIVE+'/'+uid(),obj); }
   else fbUpdate('memos/'+ACTIVE+'/'+id,obj);
-  logChange(id?'編輯備忘':'新增備忘',(text||url).slice(0,30));
+  logChange(id?'編輯備忘':'新增備忘',(titleVal||text||url).slice(0,30));
   _seg={}; closeModal(); toast('已儲存');
 }
 
@@ -1750,7 +1884,7 @@ function editPoll(id){
         <button data-v="multi" class="${p.selType==='multi'?'on':''}" onclick="segPick('pq-stype','multi')">☑️ 複選</button>
       </div>
     </div>
-    <label class="fld">截止日期（選填）</label><input type="date" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}" style="max-width:100%">
+    <label class="fld">截止日期時間（選填）</label><input type="datetime-local" class="tag-input" id="pq-due" value="${esc(p.dueDate||'')}" style="max-width:100%">
     <label class="fld">選項</label>
     <div id="pq-opts-list">${rows.map((o,i)=>renderPollOptRow(o.text||'',o.note||'',o.url||'',i,o._id||'')).join('')}</div>
     <button class="btn ghost sm" style="width:100%;margin-top:4px" onclick="addPollOptRow()">${fi('plus',12)} 新增選項</button>
@@ -1940,33 +2074,6 @@ function exportPDF(){
   setTimeout(()=>{ window.print(); },200);
 }
 
-/* ════════════ Google Maps 路線 ════════════ */
-function extractCoordsFromUrl(url){
-  if(!url) return null;
-  const m1=url.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
-  if(m1) return {lat:parseFloat(m1[1]),lng:parseFloat(m1[2])};
-  const m2=url.match(/[?&]q=(-?\d+\.?\d+),(-?\d+\.?\d+)/);
-  if(m2) return {lat:parseFloat(m2[1]),lng:parseFloat(m2[2])};
-  const m3=url.match(/maps\/place\/[^/]+\/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
-  if(m3) return {lat:parseFloat(m3[1]),lng:parseFloat(m3[2])};
-  return null;
-}
-function openDayRoute(dayId){
-  const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId],'order').filter(it=>it.name);
-  if(items.length<2){toast('至少需要 2 個景點才能建立路線');return;}
-  const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
-  const getPoint=(item)=>{
-    const c=extractCoordsFromUrl(item.mapUrl||'');
-    if(c) return c.lat+','+c.lng;
-    return encodeURIComponent((item.name||'')+(dest?' '+dest:''));
-  };
-  const pts=items.map(getPoint);
-  const origin=pts[0],destination=pts[pts.length-1];
-  const mid=pts.slice(1,-1).slice(0,7);
-  let url='https://www.google.com/maps/dir/?api=1&origin='+origin+'&destination='+destination+'&travelmode=transit';
-  if(mid.length) url+='&waypoints='+mid.join('|');
-  window.open(url,'_blank');
-}
 
 /* ════════════════ 啟動 ════════════════ */
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); }
