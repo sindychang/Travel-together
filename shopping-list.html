@@ -136,33 +136,45 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
 /* ── Item ── */
 .item-row{
   display:grid;
-  grid-template-columns:58px 1fr auto;
-  gap:10px;align-items:start;
-  padding:11px 13px;
+  grid-template-columns:28px 52px 1fr auto;
+  gap:8px;align-items:center;
+  padding:9px 12px;
   border-bottom:1px solid #EDF7F3;
 }
-@media(min-width:500px){.item-row{grid-template-columns:70px 1fr auto;gap:13px;padding:13px 15px;}}
+@media(min-width:500px){.item-row{grid-template-columns:28px 64px 1fr auto;gap:10px;padding:11px 14px;}}
 .item-row:last-of-type{border-bottom:none;}
-.item-thumb-wrap{width:58px;height:58px;}
-@media(min-width:500px){.item-thumb-wrap{width:70px;height:70px;}}
+.item-thumb-wrap{width:52px;height:52px;}
+@media(min-width:500px){.item-thumb-wrap{width:64px;height:64px;}}
 .item-thumb{width:100%;height:100%;border-radius:9px;object-fit:cover;display:block;border:1px solid var(--line);}
 .item-thumb-fallback{width:100%;height:100%;border-radius:9px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}
 .item-thumb-fallback svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.5;}
 .item-body{min-width:0;}
-.item-name{font-weight:700;font-size:13px;line-height:1.4;word-break:break-word;margin-bottom:2px;}
+.item-name{font-weight:700;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 @media(min-width:400px){.item-name{font-size:14px;}}
 .item-name.done{text-decoration:line-through;color:var(--ink-soft);}
 .item-price{font-size:12px;color:var(--primary-dark);font-weight:700;margin-bottom:2px;}
 .item-note{font-size:12px;color:var(--ink-soft);margin-bottom:3px;line-height:1.4;}
-.item-link{display:inline-block;font-size:11px;color:var(--primary);text-decoration:none;word-break:break-all;line-height:1.5;}
-.item-link:hover{text-decoration:underline;}
-.item-actions{display:flex;flex-direction:column;align-items:flex-end;gap:5px;padding-top:1px;}
-.check-btn{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
+.item-name-row{display:flex;align-items:center;gap:5px;margin-bottom:2px;flex-wrap:nowrap;}
+.item-link-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);text-decoration:none;line-height:1;}
+.item-link-icon:hover{color:var(--primary);}
+.item-link-icon svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.price-hint{font-size:11px;color:var(--ink-soft);}
+.price-input-row{display:flex;gap:6px;align-items:stretch;margin-top:4px;}
+.price-input-row select.inp{width:auto;flex-shrink:0;padding:10px 4px;cursor:pointer;}
+.price-input-row input.inp{flex:1;min-width:0;}
+.modal-price-hint{font-size:11px;color:var(--ink-soft);margin-top:4px;min-height:16px;padding-left:2px;}
+.cur-header-sel{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:4px 6px;font-size:11px;font-weight:700;cursor:pointer;outline:none;}
+.cur-header-sel option{color:var(--ink);background:#fff;}
+.rate-display{display:flex;align-items:center;gap:3px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;}
+.rate-input{width:46px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);border-radius:5px;padding:2px 4px;font-size:11px;font-weight:700;color:#fff;text-align:center;outline:none;-moz-appearance:textfield;}
+.rate-input::-webkit-outer-spin-button,.rate-input::-webkit-inner-spin-button{-webkit-appearance:none;}
+.rate-input:focus{background:rgba(255,255,255,.28);}
+.check-btn{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;flex-shrink:0;}
 .check-btn:hover{border-color:var(--primary);}
 .check-btn.done{background:var(--primary);border-color:var(--primary);}
 .check-btn.done svg{stroke:#fff;}
 .check-btn svg{width:13px;height:13px;fill:none;stroke:var(--line);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
-.item-edit-row{display:flex;gap:4px;}
+.item-edit-row{display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
 
 /* ── Add item ── */
 .add-item-btn{
@@ -233,6 +245,20 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
       <h1>購物清單</h1>
     </div>
     <div class="header-right">
+      <select class="cur-header-sel" id="global-cur" onchange="setGlobalCurrency(this.value)">
+        <option value="KRW">₩ KRW</option>
+        <option value="JPY">¥ JPY</option>
+        <option value="USD">$ USD</option>
+        <option value="THB">฿ THB</option>
+        <option value="HKD">HK$ HKD</option>
+        <option value="SGD">S$ SGD</option>
+        <option value="EUR">€ EUR</option>
+        <option value="TWD">NT$ TWD</option>
+      </select>
+      <div class="rate-display">
+        <span>1<span id="rate-sym">₩</span>=NT$</span>
+        <input class="rate-input" id="rate-val" type="number" step="0.001" min="0.0001" value="0.024" oninput="setCustomRate(this.value)" onchange="setCustomRate(this.value)">
+      </div>
       <div class="sync-dot" id="sync-dot"></div>
       <div class="header-stats" id="header-stats">讀取中…</div>
     </div>
@@ -299,6 +325,10 @@ const PATH='docs/shopping-list';
 function fbRef(p){return db.ref(PATH+(p?'/'+p:''));}
 function fbSet(p,v){return fbRef(p).set(v);}
 
+// ── Currency ──
+const RATES={KRW:.024,JPY:.22,USD:32,THB:.9,HKD:4.1,SGD:24,EUR:35,TWD:1};
+const CUR_SYM={KRW:'₩',JPY:'¥',USD:'$',THB:'฿',HKD:'HK$',SGD:'S$',EUR:'€',TWD:'NT$'};
+
 // ── State ──
 let DATA={stores:[]};
 let MODAL_OPEN=false;
@@ -315,7 +345,7 @@ function toArr(v){
 const dot=document.getElementById('sync-dot');
 fbRef().once('value').then(snap=>{
   const val=snap.val();
-  if(!val||!val.stores){ fbRef().set({stores:[]}); DATA={stores:[]}; renderAll(); }
+  if(!val||!val.stores){ fbRef().set({stores:[],currency:'KRW'}); DATA={stores:[],currency:'KRW'}; renderAll(); }
   else { mergeData(val); renderAll(); }
   dot.className='sync-dot ok';
 }).catch(()=>{ dot.className='sync-dot err'; renderAll(); });
@@ -328,12 +358,15 @@ fbRef().on('value',snap=>{
 });
 
 function mergeData(val){
+  DATA.currency=val.currency||'KRW';
+  DATA.customRate=val.customRate||RATES[DATA.currency]||0.024;
   DATA.stores=toArr(val.stores).map(s=>({
     name:s.name||'（未命名店家）',
     region:s.region||'',
     category:s.category||'',
     items:toArr(s.items).map(it=>({
       name:it.name||'',url:it.url||'',price:it.price||'',
+      priceCur:it.priceCur||'',priceAmt:it.priceAmt||0,
       note:it.note||'',done:!!it.done,
       preview:{img:it.preview?.img||'',title:it.preview?.title||''}
     }))
@@ -396,6 +429,25 @@ function updateFilterUI(){
     cats.map(c=>`<div class="chip${_filterCategory===c?' active':''}" onclick="setCategory('${ea(c)}')">${eh(c)}</div>`).join('')||'<span style="font-size:12px;color:var(--ink-soft)">（尚無類別）</span>';
 }
 
+function getRateToTWD(cur){
+  if(cur===DATA.currency) return DATA.customRate||RATES[cur]||1;
+  return RATES[cur]||1;
+}
+function setCustomRate(val){
+  const r=parseFloat(val);
+  if(!r||r<=0) return;
+  DATA.customRate=r;
+  fbSet('customRate',r);
+  renderAll();
+}
+function setGlobalCurrency(c){
+  DATA.currency=c;
+  DATA.customRate=RATES[c]||1;
+  fbSet('currency',c);
+  fbSet('customRate',DATA.customRate);
+  renderAll();
+}
+
 // ── Render ──
 function renderAll(){
   updateFilterUI();
@@ -403,6 +455,12 @@ function renderAll(){
   let total=0,done=0;
   DATA.stores.forEach(s=>s.items.forEach(it=>{total++;if(it.done)done++;}));
   document.getElementById('header-stats').textContent=total?`${done}/${total} 已買`:'0 件';
+  const gcs=document.getElementById('global-cur');
+  if(gcs) gcs.value=DATA.currency||'KRW';
+  const rv=document.getElementById('rate-val');
+  if(rv) rv.value=DATA.customRate!=null?DATA.customRate:(RATES[DATA.currency||'KRW']||0.024);
+  const rs=document.getElementById('rate-sym');
+  if(rs) rs.textContent=CUR_SYM[DATA.currency||'KRW']||'₩';
 }
 
 function renderStores(){
@@ -465,20 +523,25 @@ function renderItem(it,si,ii,faded=false){
   const thumbHtml=hasPrev
     ?`<img class="item-thumb" src="${eh(it.preview.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="item-thumb-fallback" style="display:none">${svg.bag}</div>`
     :`<div class="item-thumb-fallback">${svg.bag}</div>`;
+  const _rate=it.priceCur?getRateToTWD(it.priceCur):1;
+  const _rateBack=DATA.customRate||RATES[DATA.currency]||1;
   return `<div class="item-row" style="${faded?'opacity:.5':''}">
+    <div class="check-btn${it.done?' done':''}" onclick="toggleItem(${si},${ii})">${svg.check}</div>
     <div class="item-thumb-wrap">${thumbHtml}</div>
     <div class="item-body">
-      <div class="item-name${it.done?' done':''}">${eh(it.name)||'（未命名品項）'}</div>
-      ${it.price?`<div class="item-price">${eh(it.price)}</div>`:''}
-      ${it.note?`<div class="item-note">${eh(it.note)}</div>`:''}
-      ${it.url?`<a class="item-link" href="${eh(it.url)}" target="_blank" onclick="event.stopPropagation()">🔗 ${shortUrl(it.url)}</a>`:''}
-    </div>
-    <div class="item-actions">
-      <div class="check-btn${it.done?' done':''}" onclick="toggleItem(${si},${ii})">${svg.check}</div>
-      <div class="item-edit-row">
-        <button class="icon-btn edit" onclick="editItem(${si},${ii})">${svg.edit}</button>
-        <button class="icon-btn del" onclick="delItem(${si},${ii})">${svg.trash}</button>
+      <div class="item-name-row">
+        <span class="item-name${it.done?' done':''}">${eh(it.name)||'（未命名品項）'}</span>
+        ${it.url?`<a class="item-link-icon" href="${eh(it.url)}" target="_blank" onclick="event.stopPropagation()" title="${eh(shortUrl(it.url))}"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`:''}
       </div>
+      ${(it.priceCur&&it.priceAmt)?`<div><span class="item-price">${CUR_SYM[it.priceCur]||''}${Number(it.priceAmt).toLocaleString()}</span>${
+        it.priceCur!=='TWD'?` <span class="price-hint">≈ NT$${Math.round(it.priceAmt*_rate).toLocaleString()}</span>`:
+        (DATA.currency&&DATA.currency!=='TWD'?` <span class="price-hint">≈ ${CUR_SYM[DATA.currency]}${Math.round(it.priceAmt/_rateBack).toLocaleString()}</span>`:'')
+      }</div>`:(it.price?`<div class="item-price">${eh(it.price)}</div>`:'')}
+      ${it.note?`<div class="item-note">${eh(it.note)}</div>`:''}
+    </div>
+    <div class="item-edit-row">
+      <button class="icon-btn edit" onclick="editItem(${si},${ii})">${svg.edit}</button>
+      <button class="icon-btn del" onclick="delItem(${si},${ii})">${svg.trash}</button>
     </div>
   </div>`;
 }
@@ -548,7 +611,7 @@ function delStore(si){ if(!confirm(`確定刪除「${DATA.stores[si].name}」及
 
 // ── Item CRUD ──
 function addItem(si){
-  DATA.stores[si].items.push({name:'',url:'',price:'',note:'',done:false,preview:{img:'',title:''}});
+  DATA.stores[si].items.push({name:'',url:'',price:'',priceCur:DATA.currency||'KRW',priceAmt:0,note:'',done:false,preview:{img:'',title:''}});
   const ii=DATA.stores[si].items.length-1;
   fbSet('stores',DATA.stores);
   openItemModal(si,ii,true);
@@ -571,17 +634,23 @@ function openItemModal(si,ii,isNew){
       ${hasPrev?`<img src="${ea(it.preview.img)}" onerror="this.style.display='none'"><div class="p-text">${eh(it.preview.title||'')}</div>`
         :`<div class="p-text" style="color:var(--ink-soft)">貼網址後點按鈕抓取預覽圖</div>`}
     </div>
-    <div class="inp-row" style="margin-top:12px">
-      <div><label class="fld">價格</label><input class="inp" id="it-price" value="${ea(it.price)}" placeholder="₩15,000"></div>
-      <div><label class="fld">備註</label><input class="inp" id="it-note" value="${ea(it.note)}" placeholder="尺寸、顏色…"></div>
+    <label class="fld" style="margin-top:12px">價格</label>
+    <div class="price-input-row">
+      <select class="inp" id="it-cur" onchange="updatePriceHint()" style="width:auto;flex-shrink:0;padding:10px 4px;">
+        ${['KRW','JPY','USD','THB','HKD','SGD','EUR','TWD'].map(c=>`<option value="${c}"${(it.priceCur||DATA.currency||'KRW')===c?' selected':''}>${CUR_SYM[c]} ${c}</option>`).join('')}
+      </select>
+      <input class="inp" id="it-priceamt" type="number" min="0" step="1" value="${it.priceAmt||''}" placeholder="0" oninput="updatePriceHint()" style="flex:1">
     </div>
+    <div class="modal-price-hint" id="it-pricehint"></div>
+    <label class="fld">備註</label>
+    <input class="inp" id="it-note" value="${ea(it.note)}" placeholder="尺寸、顏色…">
     <div class="modal-acts">
       ${!isNew?`<button class="btn-del" onclick="delItem(${si},${ii});closeModal()">刪除</button>`:''}
       <button class="btn-cancel" onclick="${isNew?`delItem(${si},${ii});`:''}closeModal()">取消</button>
       <button class="btn-save" onclick="saveItem(${si},${ii})">儲存</button>
     </div>`);
   window._editCtx={si,ii};
-  setTimeout(()=>document.getElementById('it-name')?.focus(),100);
+  setTimeout(()=>{ document.getElementById('it-name')?.focus(); updatePriceHint(); },100);
 }
 function onUrlInput(){
   const url=document.getElementById('it-url').value.trim();
@@ -617,12 +686,30 @@ async function fetchPreview(){
   btn.disabled=false;
   btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> 重新抓取`;
 }
+function updatePriceHint(){
+  const cur=document.getElementById('it-cur')?.value||DATA.currency||'KRW';
+  const amt=parseFloat(document.getElementById('it-priceamt')?.value)||0;
+  const hint=document.getElementById('it-pricehint');
+  if(!hint) return;
+  if(!amt){hint.textContent='';return;}
+  if(cur==='TWD'){
+    const rc=DATA.currency||'KRW';
+    const r=DATA.customRate||RATES[rc]||1;
+    hint.textContent=rc!=='TWD'?`≈ ${CUR_SYM[rc]}${Math.round(amt/r).toLocaleString()}`:'';
+  } else {
+    hint.textContent=`≈ NT$ ${Math.round(amt*getRateToTWD(cur)).toLocaleString()}`;
+  }
+}
 function saveItem(si,ii){
   const ctx=window._editCtx||{si,ii};
   const fp=window._fetchedPreview;
   const prev=DATA.stores[ctx.si].items[ctx.ii].preview||{img:'',title:''};
+  const _cur=document.getElementById('it-cur')?.value||DATA.currency||'KRW';
+  const _amt=parseFloat(document.getElementById('it-priceamt')?.value)||0;
   DATA.stores[ctx.si].items[ctx.ii]={
-    name:v('it-name'),url:v('it-url'),price:v('it-price'),note:v('it-note'),
+    name:v('it-name'),url:v('it-url'),price:'',
+    priceCur:_cur,priceAmt:_amt,
+    note:v('it-note'),
     done:DATA.stores[ctx.si].items[ctx.ii].done||false,
     preview:fp?{img:fp.img,title:fp.title}:(fp===null?{img:'',title:''}:prev)
   };
