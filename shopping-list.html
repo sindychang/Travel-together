@@ -619,20 +619,23 @@ function addItem(si){
 function editItem(si,ii){ openItemModal(si,ii,false); }
 function openItemModal(si,ii,isNew){
   const it=DATA.stores[si].items[ii];
-  const hasPrev=it.preview&&it.preview.img;
+  const hasPrev=!!(it.preview&&it.preview.img);
   openModal(`<div class="modal-title">${isNew?'新增品項':'編輯品項'}</div>
     <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">店家：${eh(DATA.stores[si].name)}</div>
     <label class="fld">品項名稱</label>
     <input class="inp" id="it-name" value="${ea(it.name)}" placeholder="例：LANEIGE 水凝光唇膏">
-    <label class="fld">商品網址</label>
-    <input class="inp" id="it-url" value="${ea(it.url)}" placeholder="https://…" oninput="onUrlInput()">
+    <label class="fld">商品頁網址</label>
+    <input class="inp" id="it-url" value="${ea(it.url)}" placeholder="https://…">
     <button class="fetch-btn" id="fetch-btn" onclick="fetchPreview()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      抓取商品預覽圖
+      自動抓取預覽圖（成功率不定）
     </button>
+    <label class="fld" style="margin-top:10px">預覽圖網址</label>
+    <p class="hint" style="margin:2px 0 5px">自動抓取失敗時：右鍵商品圖 → 複製圖片網址，貼到這裡</p>
+    <input class="inp" id="it-imgurl" value="${ea(it.preview?.img||'')}" placeholder="https://…（圖片直連，最穩定）" oninput="onImgUrlInput()">
     <div class="preview-box${hasPrev?' show':''}" id="preview-box">
-      ${hasPrev?`<img src="${ea(it.preview.img)}" onerror="this.style.display='none'"><div class="p-text">${eh(it.preview.title||'')}</div>`
-        :`<div class="p-text" style="color:var(--ink-soft)">貼網址後點按鈕抓取預覽圖</div>`}
+      ${hasPrev?`<img src="${ea(it.preview.img)}" onerror="this.style.display='none'"><div class="p-text">${eh(it.preview.title||it.name||'')}</div>`
+        :`<div class="p-text" style="color:var(--ink-soft)">貼圖片網址後自動顯示</div>`}
     </div>
     <label class="fld" style="margin-top:12px">價格</label>
     <div class="price-input-row">
@@ -652,39 +655,48 @@ function openItemModal(si,ii,isNew){
   window._editCtx={si,ii};
   setTimeout(()=>{ document.getElementById('it-name')?.focus(); updatePriceHint(); },100);
 }
-function onUrlInput(){
-  const url=document.getElementById('it-url').value.trim();
+function onImgUrlInput(){
+  const imgUrl=v('it-imgurl');
   const box=document.getElementById('preview-box');
-  if(url){ box.className='preview-box show'; box.innerHTML=`<div class="p-text" style="color:var(--ink-soft)">點上方按鈕抓取預覽圖</div>`; }
-  else box.className='preview-box';
+  if(imgUrl){
+    box.className='preview-box show';
+    box.innerHTML=`<img src="${eh(imgUrl)}" onerror="this.outerHTML='<div class=\\'p-text\\' style=\\'color:#ef4444\\'>⚠️ 圖片連結無效</div>'"><div class="p-text" style="font-size:11px;color:var(--ink-soft)">手動輸入</div>`;
+  } else {
+    box.className='preview-box';
+    box.innerHTML=`<div class="p-text" style="color:var(--ink-soft)">貼圖片網址後自動顯示</div>`;
+  }
 }
 async function fetchPreview(){
   const url=document.getElementById('it-url').value.trim();
   if(!url){ alert('請先填入商品網址'); return; }
   const btn=document.getElementById('fetch-btn');
   const box=document.getElementById('preview-box');
+  const resetBtn=()=>{ btn.disabled=false; btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> 重新抓取`; };
   btn.disabled=true; btn.textContent='⏳ 抓取中…';
   box.className='preview-box show';
   box.innerHTML=`<div class="p-text" style="color:var(--ink-soft)">讀取網頁資訊中…</div>`;
+
   try{
     const res=await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=false`);
     const json=await res.json();
     if(json.status==='success'&&json.data){
-      const img=json.data.image?.url||''; const title=json.data.title||url;
-      window._fetchedPreview={img,title};
-      box.innerHTML=img
-        ?`<img src="${eh(img)}" onerror="this.style.display='none'"><div class="p-text"><strong>${eh(title)}</strong></div>`
-        :`<div class="p-text">✅ ${eh(title)}<br><span style="font-size:11px;color:var(--ink-soft)">此網站無預覽圖</span></div>`;
+      let img=json.data.image?.url||'';
+      const title=json.data.title||'';
+      if(img){
+        const imgField=document.getElementById('it-imgurl');
+        if(imgField){ imgField.value=img; onImgUrlInput(); }
+      } else {
+        box.innerHTML=`<div class="p-text">✅ ${eh(title||url)}<br><span style="font-size:11px;color:var(--ink-soft)">此網站無預覽圖，可手動貼圖片網址</span></div>`;
+      }
+    } else if(json.status==='fail'&&json.data?.code==='EREQUESTDISALLOWED'){
+      box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 本月免費額度已用完（月底重置），請用手動方式貼圖片網址</div>`;
     } else {
-      box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 無法抓取，仍可儲存連結</div>`;
-      window._fetchedPreview=null;
+      box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 自動抓取失敗，請手動貼圖片網址</div>`;
     }
   }catch(e){
-    box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 網路錯誤，請稍後再試</div>`;
-    window._fetchedPreview=null;
+    box.innerHTML=`<div class="p-text" style="color:#ef4444">⚠️ 網路錯誤，請稍後再試或手動貼圖片網址</div>`;
   }
-  btn.disabled=false;
-  btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> 重新抓取`;
+  resetBtn();
 }
 function updatePriceHint(){
   const cur=document.getElementById('it-cur')?.value||DATA.currency||'KRW';
@@ -702,18 +714,16 @@ function updatePriceHint(){
 }
 function saveItem(si,ii){
   const ctx=window._editCtx||{si,ii};
-  const fp=window._fetchedPreview;
-  const prev=DATA.stores[ctx.si].items[ctx.ii].preview||{img:'',title:''};
   const _cur=document.getElementById('it-cur')?.value||DATA.currency||'KRW';
   const _amt=parseFloat(document.getElementById('it-priceamt')?.value)||0;
+  const imgUrl=v('it-imgurl');
   DATA.stores[ctx.si].items[ctx.ii]={
     name:v('it-name'),url:v('it-url'),price:'',
     priceCur:_cur,priceAmt:_amt,
     note:v('it-note'),
     done:DATA.stores[ctx.si].items[ctx.ii].done||false,
-    preview:fp?{img:fp.img,title:fp.title}:(fp===null?{img:'',title:''}:prev)
+    preview:{img:imgUrl,title:''}
   };
-  window._fetchedPreview=undefined;
   fbSet('stores',DATA.stores); closeModal();
 }
 function delItem(si,ii){ if(!confirm(`確定刪除「${DATA.stores[si].items[ii].name||'此品項'}」？`)) return; DATA.stores[si].items.splice(ii,1); fbSet('stores',DATA.stores); }
