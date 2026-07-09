@@ -28,12 +28,17 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
   position:sticky;top:0;z-index:50;
   box-shadow:0 2px 12px rgba(0,0,0,.18);
 }
-.header-inner{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.header-title{display:flex;align-items:center;gap:10px;}
+.header-inner{max-width:720px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;}
+.header-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+.header-left h1{margin:0;font-size:18px;font-weight:900;letter-spacing:-.3px;white-space:nowrap;}
+.header-meta{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.header-cur-rate{display:flex;align-items:center;gap:8px;width:100%;padding-left:2px;}
+@media(min-width:500px){.header-inner{flex-wrap:nowrap;}.header-cur-rate{width:auto;padding-left:0;}}
+.hamburger-btn{background:rgba(255,255,255,.2);border:none;border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;}
+.hamburger-btn svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
 .header-icon{width:34px;height:34px;background:rgba(255,255,255,.2);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .header-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .header h1{margin:0;font-size:18px;font-weight:900;letter-spacing:-.3px;}
-.header-right{display:flex;align-items:center;gap:8px;}
 .header-stats{font-size:12px;background:rgba(255,255,255,.2);border-radius:999px;padding:4px 12px;font-weight:700;white-space:nowrap;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);flex-shrink:0;}
 .sync-dot.ok{background:#6ee7b7;}
@@ -136,12 +141,14 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
 /* ── Item ── */
 .item-row{
   display:grid;
-  grid-template-columns:28px 52px 1fr auto;
+  grid-template-columns:28px 52px 1fr;
   gap:8px;align-items:center;
   padding:9px 12px;
   border-bottom:1px solid #EDF7F3;
+  cursor:pointer;transition:background .12s;
 }
-@media(min-width:500px){.item-row{grid-template-columns:28px 64px 1fr auto;gap:10px;padding:11px 14px;}}
+.item-row:hover{background:#f5fbf8;}
+@media(min-width:500px){.item-row{grid-template-columns:28px 64px 1fr;gap:10px;padding:11px 14px;}}
 .item-row:last-of-type{border-bottom:none;}
 .item-thumb-wrap{width:52px;height:52px;}
 @media(min-width:500px){.item-thumb-wrap{width:64px;height:64px;}}
@@ -231,6 +238,20 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
 .preview-box img{width:48px;height:48px;border-radius:7px;object-fit:cover;flex-shrink:0;background:#fff;}
 .preview-box .p-text{font-size:12px;color:var(--ink);line-height:1.4;flex:1;}
 .hint{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+
+/* ── Sidebar ── */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;}
+.sidebar-overlay.open{display:block;}
+.sidebar{position:fixed;left:-280px;top:0;bottom:0;width:260px;background:#fff;z-index:201;transition:left .25s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.15);}
+.sidebar.open{left:0;}
+.sidebar-hdr{background:linear-gradient(135deg,var(--primary-dark),var(--primary));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 16px;display:flex;align-items:center;gap:12px;}
+.sidebar-close-btn{background:rgba(255,255,255,.2);border:none;border-radius:8px;width:32px;height:32px;color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sidebar-title{font-size:16px;font-weight:900;flex:1;}
+.sidebar-body{flex:1;overflow-y:auto;padding:16px;}
+.sidebar-section-label{font-size:10px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px;}
+.sidebar-btn{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border-radius:11px;border:none;background:var(--bg);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;text-align:left;margin-bottom:6px;transition:background .15s;font-family:"Noto Sans TC",sans-serif;}
+.sidebar-btn:hover{background:var(--primary-light);color:var(--primary-dark);}
+.sidebar-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -238,13 +259,20 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
 <!-- Header -->
 <div class="header">
   <div class="header-inner">
-    <div class="header-title">
+    <div class="header-left">
+      <button class="hamburger-btn" onclick="openSidebar()" aria-label="選單">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div class="header-icon">
         <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       </div>
       <h1>購物清單</h1>
     </div>
-    <div class="header-right">
+    <div class="header-meta">
+      <div class="sync-dot" id="sync-dot"></div>
+      <div class="header-stats" id="header-stats">讀取中…</div>
+    </div>
+    <div class="header-cur-rate">
       <select class="cur-header-sel" id="global-cur" onchange="setGlobalCurrency(this.value)">
         <option value="KRW">₩ KRW</option>
         <option value="JPY">¥ JPY</option>
@@ -259,8 +287,6 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
         <span>1<span id="rate-sym">₩</span>=NT$</span>
         <input class="rate-input" id="rate-val" type="number" step="0.001" min="0.0001" value="0.024" oninput="setCustomRate(this.value)" onchange="setCustomRate(this.value)">
       </div>
-      <div class="sync-dot" id="sync-dot"></div>
-      <div class="header-stats" id="header-stats">讀取中…</div>
     </div>
   </div>
 </div>
@@ -291,6 +317,31 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
       </div>
       <button class="filter-clear" id="filter-clear" onclick="clearFilter()" style="display:none">清除所有篩選</button>
     </div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-hdr">
+    <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
+    <span class="sidebar-title">選單</span>
+  </div>
+  <div class="sidebar-body">
+    <div class="sidebar-section-label">資料備份</div>
+    <button class="sidebar-btn" onclick="exportJSON();closeSidebar()">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      匯出 JSON 備份
+    </button>
+    <button class="sidebar-btn" onclick="exportPDF();closeSidebar()">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      匯出 PDF
+    </button>
+    <button class="sidebar-btn" onclick="document.getElementById('import-file').click()">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      匯入備份
+    </button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this);closeSidebar()">
   </div>
 </div>
 
@@ -525,8 +576,8 @@ function renderItem(it,si,ii,faded=false){
     :`<div class="item-thumb-fallback">${svg.bag}</div>`;
   const _rate=it.priceCur?getRateToTWD(it.priceCur):1;
   const _rateBack=DATA.customRate||RATES[DATA.currency]||1;
-  return `<div class="item-row" style="${faded?'opacity:.5':''}">
-    <div class="check-btn${it.done?' done':''}" onclick="toggleItem(${si},${ii})">${svg.check}</div>
+  return `<div class="item-row" style="${faded?'opacity:.5':''}" onclick="editItem(${si},${ii})">
+    <div class="check-btn${it.done?' done':''}" onclick="event.stopPropagation();toggleItem(${si},${ii})">${svg.check}</div>
     <div class="item-thumb-wrap">${thumbHtml}</div>
     <div class="item-body">
       <div class="item-name-row">
@@ -538,10 +589,6 @@ function renderItem(it,si,ii,faded=false){
         (DATA.currency&&DATA.currency!=='TWD'?` <span class="price-hint">≈ ${CUR_SYM[DATA.currency]}${Math.round(it.priceAmt/_rateBack).toLocaleString()}</span>`:'')
       }</div>`:(it.price?`<div class="item-price">${eh(it.price)}</div>`:'')}
       ${it.note?`<div class="item-note">${eh(it.note)}</div>`:''}
-    </div>
-    <div class="item-edit-row">
-      <button class="icon-btn edit" onclick="editItem(${si},${ii})">${svg.edit}</button>
-      <button class="icon-btn del" onclick="delItem(${si},${ii})">${svg.trash}</button>
     </div>
   </div>`;
 }
@@ -739,6 +786,87 @@ function eh(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function ea(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function v(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
 function shortUrl(u){ try{ const p=new URL(u); return p.hostname.replace(/^www\./,'')+(p.pathname.length>1?p.pathname.slice(0,18)+(p.pathname.length>18?'…':''):''); }catch{ return u.slice(0,30); } }
+
+// ── Sidebar ──
+function openSidebar(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('open');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── Export JSON ──
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`購物清單_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// ── Import JSON ──
+function importJSON(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.stores) throw new Error('missing stores');
+      if(!confirm(`匯入後會覆蓋目前的購物清單，確定嗎？`)){input.value='';return;}
+      fbRef().set(data)
+        .then(()=>alert('✅ 匯入成功！'))
+        .catch(()=>alert('❌ 匯入失敗，請確認網路連線'));
+    }catch{ alert('❌ 格式錯誤，請選擇正確的購物清單備份檔（.json）'); }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ── Export PDF ──
+function exportPDF(){
+  const date=new Date().toLocaleDateString('zh-Hant');
+  const rateLine=`1${CUR_SYM[DATA.currency]||DATA.currency}＝NT$${DATA.customRate||RATES[DATA.currency]||''}`;
+  let rows='';
+  DATA.stores.forEach(s=>{
+    if(!s.items.length) return;
+    rows+=`<tr class="store-row"><td colspan="4"><b>${s.name}</b>${s.region?` <span class="tag">${s.region}</span>`:''}${s.category?` <span class="tag">${s.category}</span>`:''}</td></tr>`;
+    s.items.forEach(it=>{
+      const priceStr=it.priceAmt?`${CUR_SYM[it.priceCur]||''}${Number(it.priceAmt).toLocaleString()}`:(it.price||'—');
+      const twdStr=(it.priceAmt&&it.priceCur&&it.priceCur!=='TWD')?`≈ NT$${Math.round(it.priceAmt*(RATES[it.priceCur]||1)).toLocaleString()}`:'';
+      const doneCls=it.done?' class="done"':'';
+      rows+=`<tr><td${doneCls}>${it.done?'✅ ':' '}${it.name||'（未命名）'}</td><td${doneCls}>${it.note||''}</td><td${doneCls}>${priceStr}</td><td${doneCls} style="color:#5A7268">${twdStr}</td></tr>`;
+    });
+  });
+  const html=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>購物清單</title>
+  <style>
+    *{box-sizing:border-box;font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+    body{margin:24px 28px;color:#1a2e28;font-size:13px;line-height:1.6;}
+    h1{font-size:20px;font-weight:900;color:#1F6653;margin:0 0 3px;}
+    .sub{font-size:11px;color:#5A7268;margin-bottom:18px;}
+    table{width:100%;border-collapse:collapse;}
+    th{text-align:left;font-size:11px;color:#5A7268;padding:5px 8px;border-bottom:2px solid #C8E0D8;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+    td{padding:6px 8px;border-bottom:1px solid #EDF7F3;vertical-align:top;}
+    .store-row td{background:#E0F2EC;font-size:14px;font-weight:900;color:#1F6653;padding:7px 8px;border-bottom:none;}
+    .done{text-decoration:line-through;color:#5A7268;}
+    .tag{font-size:10px;background:#D6E5DF;color:#5A7268;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:500;}
+    @media print{body{margin:12px 16px;}h1{font-size:16px;}}
+  </style></head><body>
+  <h1>🛍 購物清單</h1>
+  <div class="sub">匯出時間：${date}　匯率：${rateLine}</div>
+  <table>
+    <thead><tr><th>品項</th><th>備註</th><th>原價</th><th>台幣換算</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){alert('請允許彈出視窗（瀏覽器設定 → 允許此頁面的彈出視窗）');return;}
+  w.document.write(html);
+  w.document.close();
+}
 </script>
 </body>
 </html>
