@@ -125,6 +125,8 @@
   .transit{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 40px;color:var(--text-muted);font-size:11px;font-weight:700}
   .transit .tline{flex:1;border-top:1.5px dashed var(--border)}
   .item.dragging{opacity:.5}
+  [data-mid].dragging{opacity:.5}
+  [data-did].dragging{opacity:.5}
   .item.dragover{box-shadow:inset 0 2px 0 var(--primary)}
   .day-items.drag-target{outline:2px dashed var(--primary);border-radius:8px;background:var(--warm-light)}
   .map-embed{width:100%;height:200px;border:none;border-radius:var(--radius-sm);margin-top:6px}
@@ -1135,29 +1137,34 @@ function renderItin(){
   } // end international-only flights
 
   if(!days.length) h+=`<div class="empty"><span class="big">🗓️</span>還沒有天數<br>點「＋ 天數」開始排行程</div>`;
+  h+=`<div id="days-list">`;
   days.forEach((day,di)=>{
     const items=sortedBy(DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][day._id],'order');
     const open=_openDays[day._id]!==false;
     const _dhCls=di%2===0?'day-head day-head-a':'day-head day-head-b';
+    h+=`<div data-did="${day._id}">`;
     h+=`<div class="${_dhCls}" onclick="toggleDay('${day._id}')">
-      <div class="dh-l"><span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
+      <div class="dh-l">
+        <span onpointerdown="dayDragStart(event)" onclick="event.stopPropagation()" style="cursor:grab;touch-action:none;display:inline-flex;color:inherit;opacity:.7">${fi('menu',15)}</span>
+        <span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
       <span class="day-date">${day.date?fmtDate(day.date):'未設定日期'}</span></div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:11px;color:var(--text-muted);font-weight:700">${items.length}項</span>
+        <button style="padding:3px 8px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit" onclick="event.stopPropagation();pickPlaceForDay('${day._id}')">${fi('bookmark',11)} 從收藏加入</button>
         ${items.length>=2?`<button style="margin-left:4px;padding:3px 9px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 整天路線</button>`:''}
         <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
         <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span>
       </div></div>`;
     if(open){
       h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
-      if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排，點下方加入</div>`;
+      if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排<br><button class="btn sm ghost" style="margin-top:8px" onclick="pickPlaceForDay('${day._id}')">${fi('bookmark',12)} 從收藏加入</button> 或點下方 ＋ 新增</div>`;
       items.forEach((it,ii)=>{
+        const _lp=it.placeId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][it.placeId];
         h+=`<div class="item" data-day="${day._id}" data-id="${it._id}">
           <div class="item-handle" onpointerdown="dragStart(event,'${day._id}','${it._id}')">${fi('menu',16)}</div>
           <div class="item-body" onclick="itemMenu('${day._id}','${it._id}')">
-            ${it.time?`<div class="item-top"><span class="item-time">${fi('clock',11)} ${esc(it.time)}</span></div>`:''}
-            <div class="item-name">${esc(it.name)}</div>
-            ${(()=>{const _a=it.placeId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][it.placeId]?.area;return _a?`<div style="font-size:11px;color:var(--text-muted);margin-top:1px">${fi('map-pin',10)} ${esc(_a)}</div>`:''})()}
+            ${(it.time||it.stayMin)?`<div class="item-top"><span class="item-time">${fi('clock',11)} ${it.time&&it.stayMin>0?esc(it.time)+'–'+esc(addMinToTime(it.time,it.stayMin)):esc(it.time||('停留 '+it.stayMin+' 分'))}</span></div>`:''}
+            <div class="item-name">${esc(it.name)}${placeNameExtra(_lp)}</div>
+            ${placeExtraHtml(_lp)}
             ${it.note?`<div class="item-note">${esc(it.note)}</div>`:''}
             <div id="map-${it._id}"></div>
           </div>
@@ -1178,11 +1185,50 @@ function renderItin(){
       });
       h+=`</div></div>`;
     }
+    h+=`</div>`; // close data-did wrapper
   });
+  h+=`</div>`; // close #days-list
   h+=`<div style="padding:10px 4px 4px"><button class="btn sm gray" style="width:100%;padding:10px;font-size:13px" onclick="addDay()">${fi('plus',14)} 新增天數</button></div>`;
   $('itin-wrap').innerHTML=h;
 }
 function toggleDay(id){ _openDays[id]=_openDays[id]===false?true:false; renderItin(); }
+
+/* 整天拖拉排序（例如第2天要跟第4天互換，直接拖動即可，不用逐個交換） */
+let _ddrag=null;
+function dayDragStart(e){
+  e.preventDefault();
+  const el=e.target.closest('[data-did]'); if(!el) return;
+  const container=el.parentNode;
+  _ddrag={el,container};
+  el.classList.add('dragging');
+  el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+  document.body.style.userSelect='none'; document.body.style.webkitUserSelect='none';
+  document.addEventListener('pointermove',dayDragMove);
+  document.addEventListener('pointerup',dayDragEnd,{once:true});
+}
+function dayDragMove(e){
+  if(!_ddrag) return;
+  const after=getDragAfterSel(_ddrag.container,e.clientY,'[data-did]');
+  if(after==null) _ddrag.container.appendChild(_ddrag.el);
+  else _ddrag.container.insertBefore(_ddrag.el,after);
+}
+function dayDragEnd(){
+  if(!_ddrag) return;
+  document.removeEventListener('pointermove',dayDragMove);
+  document.body.style.userSelect=''; document.body.style.webkitUserSelect='';
+  _ddrag.el.classList.remove('dragging');
+  const newIds=[..._ddrag.container.querySelectorAll('[data-did]')].map(el=>el.dataset.did);
+  const upd={};
+  newIds.forEach((id,i)=>{
+    upd[id+'/order']=i;
+    // 只自動改名還維持預設「第N天」格式的天數，使用者自己改過名稱的天數不動
+    const d=DATA.days&&DATA.days[ACTIVE]&&DATA.days[ACTIVE][id];
+    if(d&&/^第\d+天$/.test((d.label||'').trim())) upd[id+'/label']='第'+(i+1)+'天';
+  });
+  if(Object.keys(upd).length) fbUpdate('days/'+ACTIVE,upd);
+  _ddrag=null;
+  renderItin(); // 重新渲染以更新單/雙日的顏色交錯與天數字眼
+}
 
 function addDay(){
   const days=DATA.days&&DATA.days[ACTIVE]?DATA.days[ACTIVE]:{}; const n=Object.keys(days).length; const k=uid();
@@ -1269,18 +1315,58 @@ function editItem(dayId,itId){
     <div class="seg" id="it-type">${catArr().map(({k,lbl,icon,cls})=>`<button data-v="${k}" class="${(it.type||'spot')===k?'on':''}" onclick="segPick('it-type','${k}')">${fi(icon,13)} ${lbl}</button>`).join('')}</div>
     <label class="fld">名稱</label><input class="tag-input" id="it-name" placeholder="例：淺草寺" value="${esc(it.name||'')}">
     <label class="fld">日期</label><select class="tag-input" id="it-day">${dayOpts}</select>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:1;min-width:120px"><label class="fld">時間</label><input type="time" class="tag-input" id="it-time" value="${esc(it.time||'')}"></div>
-    <div style="flex:2;min-width:160px"><label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}"></div></div>
+    <label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}">
+    <div id="it-more-toggle" style="margin:10px 2px 2px">
+      <button type="button" class="mini-link" style="background:var(--bg)" onclick="toggleItemMore()">${fi('clock',11)} ${(it.time||it.stayMin||it.transitMin)?'編輯':'加上'}時間・停留時間・交通（選填）</button>
+    </div>
+    <div id="it-more" class="${(it.time||it.stayMin||it.transitMin)?'':'hidden'}">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px"><label class="fld">時間</label><input type="time" class="tag-input" id="it-time" value="${esc(it.time||'')}" oninput="updItemTimeHint()"></div>
+        <div style="flex:1;min-width:120px"><label class="fld">停留時間（分）</label><input type="number" class="tag-input" id="it-stay" placeholder="例：60" min="0" value="${esc(it.stayMin||'')}" oninput="updItemTimeHint()"></div>
+      </div>
+      <div id="it-time-hint" style="font-size:11px;color:var(--primary);font-weight:700;margin:-2px 2px 8px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:2;min-width:140px"><label class="fld">到下一站交通</label>
+          <select class="tag-input" id="it-mode">${Object.keys(MODES).map(k=>`<option value="${k}" ${(it.transitMode||'transit')===k?'selected':''}>${MODES[k][0]}</option>`).join('')}</select></div>
+        <div style="flex:1;min-width:100px"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="20" min="0" value="${esc(it.transitMin||'')}"></div>
+      </div>
+    </div>
     <label class="fld">備註</label><textarea class="tag-input" id="it-note">${esc(it.note||'')}</textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><div style="flex:2;min-width:140px"><label class="fld">到下一站交通</label>
-      <select class="tag-input" id="it-mode">${Object.keys(MODES).map(k=>`<option value="${k}" ${(it.transitMode||'transit')===k?'selected':''}>${MODES[k][0]}</option>`).join('')}</select></div>
-    <div style="flex:1;min-width:100px"><label class="fld">交通時間（分）</label><input type="number" class="tag-input" id="it-tmin" placeholder="20" value="${esc(it.transitMin||'')}"></div></div>
     <div style="display:flex;align-items:center;gap:8px;margin:10px 2px 0;padding:10px 12px;background:var(--warm-light);border-radius:10px;cursor:pointer" onclick="const cb=document.getElementById('it-save-places');cb.checked=!cb.checked">
       <input type="checkbox" id="it-save-places" ${!itId||it.placeId?'checked':''} onclick="event.stopPropagation()" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
       <label for="it-save-places" style="font-size:13px;cursor:pointer;color:var(--text-primary);line-height:1.3;pointer-events:none">${fi('bookmark',13)} 加入收藏</label>
     </div>
     <div class="modal-acts">${itId?`<button class="btn danger" onclick="confirmDel('刪除此項目？',()=>{fbRemove('items/${ACTIVE}/${dayId}/${itId}');closeModal()})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveItem('${dayId}','${itId||''}')">儲存</button></div>`);
+  setTimeout(updItemTimeHint,0);
+}
+/* 時間＋停留時間 → 自動算出結束時間（處理跨午夜） */
+function addMinToTime(time,min){
+  if(!time) return '';
+  const parts=time.split(':').map(Number); if(parts.length<2||isNaN(parts[0])||isNaN(parts[1])) return '';
+  let total=parts[0]*60+parts[1]+(parseInt(min)||0);
+  total=((total%1440)+1440)%1440;
+  return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+}
+function updItemTimeHint(){
+  const hint=$('it-time-hint'); if(!hint) return;
+  const time=$('it-time')?.value, stay=$('it-stay')?.value;
+  if(time&&stay&&parseInt(stay)>0){
+    const end=addMinToTime(time,stay);
+    hint.textContent=`→ ${time}–${end}${(parseInt(stay)>=60)?'（'+Math.floor(stay/60)+'小時'+(stay%60?stay%60+'分':'')+'）':'（'+stay+'分）'}`;
+  } else if(time){
+    hint.textContent='';
+  } else if(stay){
+    hint.textContent=`停留 ${stay} 分（未設定開始時間，無法算出區間）`;
+  } else {
+    hint.textContent='';
+  }
+}
+function toggleItemMore(){
+  const box=$('it-more'); if(!box) return;
+  box.classList.toggle('hidden');
+  const btn=document.querySelector('#it-more-toggle button');
+  if(btn) btn.innerHTML=(box.classList.contains('hidden')?fi('clock',11)+' 加上時間・停留時間・交通（選填）':fi('clock',11)+' 收起時間・停留時間・交通');
 }
 let _seg={};
 function segPick(group,v){ _seg[group]=v; document.querySelectorAll('#'+group+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
@@ -1290,7 +1376,7 @@ function saveItem(dayId,itId){
   const saveToFav=document.getElementById('it-save-places')?.checked;
   const targetDay=$('it-day').value;
   const type=_seg['it-type']||(document.querySelector('#it-type button.on')?.dataset.v||'spot');
-  const obj={type,name,time:$('it-time').value,mapUrl:$('it-map').value.trim(),note:$('it-note').value.trim(),transitMode:$('it-mode').value,transitMin:$('it-tmin').value,updatedBy:ME,updatedAt:Date.now()};
+  const obj={type,name,time:$('it-time').value,stayMin:$('it-stay').value,mapUrl:$('it-map').value.trim(),note:$('it-note').value.trim(),transitMode:$('it-mode').value,transitMin:$('it-tmin').value,updatedBy:ME,updatedAt:Date.now()};
   // 取得既有 placeId（從收藏加入行程、或先前已存進收藏）
   const _existItem=itId&&DATA.items&&DATA.items[ACTIVE]&&(DATA.items[ACTIVE][dayId]?.[itId]||DATA.items[ACTIVE][targetDay]?.[itId]);
   const existPlaceId=_existItem&&_existItem.placeId;
@@ -1372,9 +1458,52 @@ function dragEnd(){
   }
   _drag=null;
 }
+function getDragAfterSel(container,y,sel){ const els=[...container.querySelectorAll(sel+':not(.dragging)')]; return els.reduce((closest,child)=>{ const box=child.getBoundingClientRect(); const offset=y-box.top-box.height/2; if(offset<0&&offset>closest.offset) return{offset,element:child}; return closest; },{offset:-Infinity}).element||null; }
+
+/* 備忘錄項目拖拉排序（同一分類內自由調整順序） */
+let _mdrag=null;
+function memoDragStart(e){
+  e.preventDefault();
+  const el=e.target.closest('[data-mid]'); if(!el) return;
+  const container=el.parentNode;
+  _mdrag={el,container};
+  el.classList.add('dragging');
+  el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+  document.body.style.userSelect='none'; document.body.style.webkitUserSelect='none';
+  document.addEventListener('pointermove',memoDragMove);
+  document.addEventListener('pointerup',memoDragEnd,{once:true});
+}
+function memoDragMove(e){
+  if(!_mdrag) return;
+  const after=getDragAfterSel(_mdrag.container,e.clientY,'[data-mid]');
+  if(after==null) _mdrag.container.appendChild(_mdrag.el);
+  else _mdrag.container.insertBefore(_mdrag.el,after);
+}
+function memoDragEnd(){
+  if(!_mdrag) return;
+  document.removeEventListener('pointermove',memoDragMove);
+  document.body.style.userSelect=''; document.body.style.webkitUserSelect='';
+  _mdrag.el.classList.remove('dragging');
+  const newIds=[..._mdrag.container.querySelectorAll('[data-mid]')].map(el=>el.dataset.mid);
+  const upd={}; newIds.forEach((id,i)=>{upd[id+'/order']=i;});
+  if(Object.keys(upd).length) fbUpdate('memos/'+ACTIVE,upd);
+  _mdrag=null;
+}
 
 /* ════════════ 收藏庫頁 ════════════ */
 let _placeFilter='all', _placeQuery='', _discQuery='', _discResults=[], _discCat='all', _discGeo=null;
+/* 收藏的推薦度/價格/區域/營業時間，行程頁與收藏頁共用同一份排版 */
+function placeNameExtra(p){
+  if(!p) return '';
+  const parts=[];
+  if(p.rating) parts.push(`<span style="font-size:11px">${'⭐'.repeat(p.rating)}</span>`);
+  if(p.area) parts.push(`<span style="font-size:11px;color:var(--text-muted);font-weight:700">${fi('map-pin',10)} ${esc(p.area)}</span>`);
+  return parts.length?`<span style="display:inline-flex;align-items:center;gap:6px;margin-left:6px">${parts.join('')}</span>`:'';
+}
+function placeExtraHtml(p){
+  if(!p||(!p.priceLevel&&!p.hours)) return '';
+  return `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px">${p.priceLevel?`<span>${esc(normPrice(p.priceLevel))}</span>`:''}${p.hours?`<span>${fi('clock',10)} ${esc(p.hours)}</span>`:''}</div>`;
+}
 function renderPlaces(){
   if(!ACTIVE){ $('places-wrap').innerHTML=`<div class="empty"><span class="big">${fi('bookmark',40)}</span>請先選一趟旅程</div>`; return; }
   const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k]));
@@ -1395,8 +1524,8 @@ function renderPlaces(){
     return `<div class="card"><div class="place-row">
       <div class="place-thumb ${c.cls}" style="font-size:20px">${fi(c.icon,20)}</div>
       <div style="flex:1;min-width:0" onclick="editPlace('${p._id}')">
-        <div style="display:flex;align-items:center;gap:6px"><span class="item-name">${esc(p.name)}</span>${p.rating?`<span style="font-size:11px">${'⭐'.repeat(p.rating)}</span>`:''}</div>
-        ${p.area?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${fi('map-pin',10)} ${esc(p.area)}</div>`:''}
+        <div class="item-name">${esc(p.name)}${placeNameExtra(p)}</div>
+        ${placeExtraHtml(p)}
         ${p.note?`<div class="item-note">${esc(p.note)}</div>`:''}
       </div></div>
       <div class="item-acts" style="padding:0 12px 11px 12px">
@@ -1418,19 +1547,38 @@ function editPlace(id){
     <label class="fld">名稱</label><input class="tag-input" id="pl-name" placeholder="例：一蘭拉麵" value="${esc(p.name||'')}">
     <label class="fld">區域</label><input class="tag-input" id="pl-area" placeholder="例：新宿" value="${esc(p.area||'')}">
     <label class="fld">Google Map 連結</label><input class="tag-input" id="pl-map" placeholder="貼上地圖連結" value="${esc(p.mapUrl||'')}">
-    <label class="fld">推薦度</label>
-    <div class="seg" id="pl-rate">${[1,2,3].map(r=>`<button data-v="${r}" class="${(p.rating||0)===r?'on':''}" onclick="segPick('pl-rate','${r}')">${'⭐'.repeat(r)}</button>`).join('')}</div>
+    <div id="pl-more-toggle" style="margin:10px 2px 2px">
+      <button type="button" class="mini-link" style="background:var(--bg)" onclick="togglePlaceMore()">${fi('clock',11)} ${(p.hours||p.priceLevel||p.rating)?'編輯':'加上'}推薦度・價格・營業時間（選填）</button>
+    </div>
+    <div id="pl-more" class="${(p.hours||p.priceLevel||p.rating)?'':'hidden'}">
+      <label class="fld">價格區間</label>
+      <div class="seg" id="pl-price">${PRICE_TIERS.map(v=>`<button data-v="${v}" class="${normPrice(p.priceLevel)===v?'on':''}" onclick="segPick('pl-price','${v}')">${v}</button>`).join('')}</div>
+      <label class="fld">營業時間</label><input class="tag-input" id="pl-hours" placeholder="例：10:00–20:00（週一公休）" value="${esc(p.hours||'')}">
+      <label class="fld">推薦度</label>
+      <div class="seg" id="pl-rate">${[1,2,3].map(r=>`<button data-v="${r}" class="${(p.rating||0)===r?'on':''}" onclick="segPick('pl-rate','${r}')">${'⭐'.repeat(r)}</button>`).join('')}</div>
+    </div>
     <label class="fld">備註</label><textarea class="tag-input" id="pl-note">${esc(p.note||'')}</textarea>
     <label class="fld">相關連結（選填）</label><input class="tag-input" id="pl-link" placeholder="https://…" value="${esc(p.link||'')}">
     <div class="modal-acts">${id?`<button class="btn danger" onclick="confirmDel('刪除此收藏？',()=>{fbRemove('places/${ACTIVE}/${id}');closeModal()})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="savePlace('${id||''}')">儲存</button></div>`);
+}
+const PRICE_TIERS=['$500以下','$500-1,000','$1,000-3,000','$3,000-10,000','$10,000以上'];
+/* 舊資料可能存的是沒有 $ 的價格區間（例如「1,000-3,000」），這裡統一補上 $ 再顯示/比對，不需要重新編輯每一筆收藏 */
+function normPrice(v){ if(!v) return ''; v=String(v).trim(); return v.startsWith('$')?v:'$'+v; }
+function togglePlaceMore(){
+  const box=$('pl-more'); if(!box) return;
+  box.classList.toggle('hidden');
+  const btn=document.querySelector('#pl-more-toggle button');
+  if(btn) btn.innerHTML=(box.classList.contains('hidden')?fi('clock',11)+' 加上推薦度・價格・營業時間（選填）':fi('clock',11)+' 收起推薦度・價格・營業時間');
 }
 function savePlace(id){
   const name=$('pl-name').value.trim(); if(!name){toast('請輸入名稱');return;}
   autoSnapshot(id?'編輯收藏':'新增收藏');
   const cat=_seg['pl-cat']||(document.querySelector('#pl-cat button.on')?.dataset.v||'spot');
   const rating=parseInt(_seg['pl-rate']||(document.querySelector('#pl-rate button.on')?.dataset.v||0))||0;
-  const obj={cat,name,area:$('pl-area').value.trim(),mapUrl:$('pl-map').value.trim(),note:$('pl-note').value.trim(),link:$('pl-link').value.trim(),rating,updatedBy:ME,updatedAt:Date.now()};
+  const priceLevel=normPrice(_seg['pl-price']||(document.querySelector('#pl-price button.on')?.dataset.v||''));
+  const hours=($('pl-hours')?.value||'').trim();
+  const obj={cat,name,area:$('pl-area').value.trim(),mapUrl:$('pl-map').value.trim(),note:$('pl-note').value.trim(),link:$('pl-link').value.trim(),rating,priceLevel,hours,updatedBy:ME,updatedAt:Date.now()};
   if(!id){ id=uid(); obj.createdAt=Date.now(); fbSet('places/'+ACTIVE+'/'+id,obj); } else fbUpdate('places/'+ACTIVE+'/'+id,obj);
   // 同步更新行程中來自此收藏的項目
   if(id && DATA.items && DATA.items[ACTIVE]){
@@ -1454,7 +1602,42 @@ function doAddPlace(pid,dayId){
   const p=DATA.places[ACTIVE][pid];
   const cur=DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId]?Object.keys(DATA.items[ACTIVE][dayId]).length:0;
   fbSet('items/'+ACTIVE+'/'+dayId+'/'+uid(),{type:p.cat||'spot',name:p.name,mapUrl:p.mapUrl||'',note:p.note||'',time:'',transitMode:'transit',transitMin:'',order:cur,placeId:pid,updatedBy:ME,updatedAt:Date.now()});
-  closeModal(); toast('已加入行程');
+  toast('已加入行程');
+  // 從行程頁的「從收藏加入」挑選視窗加入時，加完繼續留在挑選視窗，方便一次連續加好幾個
+  if(_pickDayId===dayId) renderPickPlaceModal(); else closeModal();
+}
+
+/* 從行程頁某一天，快速挑選收藏加入當天 */
+let _pickDayId=null,_pickQuery='';
+function pickPlaceForDay(dayId){
+  const places=Object.keys(DATA.places&&DATA.places[ACTIVE]||{});
+  if(!places.length){ toast('尚無收藏，請先到收藏頁新增'); return; }
+  _pickDayId=dayId; _pickQuery='';
+  renderPickPlaceModal(true);
+}
+function renderPickPlaceModal(focusSearch){
+  const day=DATA.days&&DATA.days[ACTIVE]&&DATA.days[ACTIVE][_pickDayId];
+  const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k])).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const q=_pickQuery.trim().toLowerCase();
+  const list=all.filter(p=>!q||(p.name||'').toLowerCase().includes(q)||(p.area||'').toLowerCase().includes(q));
+  // 這天已經加過的收藏，顯示已加入的提示，但仍可再點一次加入（例如同一天想去兩次）
+  const addedIds=new Set(Object.values((DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][_pickDayId])||{}).map(it=>it.placeId).filter(Boolean));
+  // 記住目前捲動的位置，加入一個景點後重新渲染時維持在原本瀏覽的地方，不用每次都從頭捲
+  const prevScroll=$('pick-place-list')?.scrollTop||0;
+  modal(`<div class="modal-title">${fi('bookmark',15)} 從收藏加入 · ${esc(day?.label||'這天')}</div>
+    <input class="tag-input" id="pick-place-q" placeholder="搜尋收藏名稱或區域…" value="${esc(_pickQuery)}" oninput="_pickQuery=this.value;renderPickPlaceModal()">
+    <div id="pick-place-list" style="max-height:52vh;overflow-y:auto;margin-top:10px">
+      ${list.length?list.map(p=>{const c=TYPES[p.cat]||TYPES.spot; const added=addedIds.has(p._id);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border-light);cursor:pointer;${added?'opacity:.55':''}" onclick="doAddPlace('${p._id}','${_pickDayId}')">
+          <div class="place-thumb ${c.cls}" style="font-size:16px;width:36px;height:36px">${fi(c.icon,16)}</div>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">${esc(p.name)}${placeNameExtra(p)}</div>${placeExtraHtml(p)}</div>
+          <span style="color:${added?'var(--success)':'var(--primary)'};flex-shrink:0">${added?fi('check-circle',20):fi('plus-circle',20)}</span>
+        </div>`;
+      }).join(''):`<div class="empty" style="padding:22px 8px">${q?'找不到符合的收藏':'還沒有收藏，先到收藏頁新增'}</div>`}
+    </div>
+    <div class="modal-acts"><button class="btn full gray" onclick="closeModal()">完成</button></div>`);
+  const listEl=$('pick-place-list'); if(listEl) listEl.scrollTop=prevScroll;
+  if(focusSearch){ const inp=$('pick-place-q'); if(inp) inp.focus(); }
 }
 
 /* ════════════ Overpass 探索（保留原版） ════════════ */
@@ -1558,9 +1741,19 @@ function renderMemo(){
       ${allDue.map(d=>`<div style="font-size:12px;color:#92400e;margin-bottom:2px">• [${d.type}] ${esc(d.name)}</div>`).join('')}
     </div>`;
   }
+  // 待辦事項分頁上的數量小紅點：未完成的待辦 + 我還沒投票且尚未截止的投票（單純提示還有多少事要處理，不額外跳提醒列）
+  const _openTodoCnt=Object.values(DATA.todos&&DATA.todos[ACTIVE]||{}).filter(t=>!t.done).length;
+  const _nowT=new Date();
+  const _openPollCnt=Object.values(DATA.polls&&DATA.polls[ACTIVE]||{}).filter(p=>{
+    if(p.dueDate&&new Date(p.dueDate)<_nowT) return false;
+    const voted=Object.values(p.options||{}).some(o=>o.votes&&o.votes[safeKey(ME)]);
+    return !voted;
+  }).length;
+  const _pendingCnt=_openTodoCnt+_openPollCnt;
+  const _pendingBadge=_pendingCnt?`<span style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;margin-left:8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;line-height:1;vertical-align:middle">${_pendingCnt}</span>`:'';
   h+=`<div class="tabs">
     <button class="tab-btn ${_memoTab==='memo'?'on':''}" onclick="_memoTab='memo';renderMemo()">${fi('file-text',14)} 備忘錄</button>
-    <button class="tab-btn ${_memoTab==='todo'?'on':''}" onclick="_memoTab='todo';renderMemo()">${fi('check-circle',14)} 待辦事項</button>
+    <button class="tab-btn ${_memoTab==='todo'?'on':''}" onclick="_memoTab='todo';renderMemo()">${fi('check-circle',14)} 待辦事項${_pendingBadge}</button>
   </div>`;
   if(_memoTab==='todo') h+=renderTodosSection();
   else h+=renderMemosSection();
@@ -1588,7 +1781,8 @@ function renderTodosSection(){
             <span class="todo-title ${t.done?'done':''}">${esc(t.title)}</span>
             ${t.dueDate?`<span class="due-tag ${over||dueToday?'over':''}">${fi('clock',10)} 截止 ${fmtDateShort(t.dueDate)}${over?' · 已逾期':dueToday?' · 今天':''}</span>`:''}
           </div>
-          ${t.by?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">by ${esc(t.by)}</div>`:''}
+          ${t.note?`<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;white-space:pre-wrap;line-height:1.5">${esc(t.note)}</div>`:''}
+          ${t.url?`<a href="${esc(t.url)}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--primary);display:inline-flex;align-items:center;gap:3px;margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fi('external-link',10)} ${esc(t.url)}</a>`:''}
         </div>
         <div style="display:flex;gap:2px">
           <button class="x-btn" onclick="event.stopPropagation();editTodo('${t._id}')">${fi('edit-2',14)}</button>
@@ -1667,13 +1861,26 @@ function editTodo(id){
   modal(`<div class="modal-title">${id?'編輯':'新增'}待辦事項</div>
     <label class="fld">標題</label><input class="tag-input" id="td-title" placeholder="例：訂餐廳、買防曬乳" value="${esc(t.title||'')}">
     <label class="fld">提醒日期（選填）</label><input type="date" class="tag-input" id="td-due" value="${esc(t.dueDate||'')}">
+    <div id="td-more-toggle" style="margin:10px 2px 2px">
+      <button type="button" class="mini-link" style="background:var(--bg)" onclick="toggleTodoMore()">${fi('message-square',11)} ${(t.note||t.url)?'編輯':'加上'}備註・網址（選填）</button>
+    </div>
+    <div id="td-more" class="${(t.note||t.url)?'':'hidden'}">
+      <label class="fld">備註</label><textarea class="tag-input" id="td-note">${esc(t.note||'')}</textarea>
+      <label class="fld">網址</label><input class="tag-input" id="td-url" placeholder="https://…" value="${esc(t.url||'')}">
+    </div>
     ${id&&t.updatedBy?`<div class="edit-info" style="margin-top:8px">${fi('edit-2',9)} ${esc(t.updatedBy)} · ${fmtTs(t.updatedAt)}</div>`:''}
     <div class="modal-acts">${id?`<button class="btn danger" onclick="fbRemove('todos/${ACTIVE}/${id}');closeModal()">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveTodo('${id||''}')">儲存</button></div>`);
 }
+function toggleTodoMore(){
+  const box=$('td-more'); if(!box) return;
+  box.classList.toggle('hidden');
+  const btn=document.querySelector('#td-more-toggle button');
+  if(btn) btn.innerHTML=(box.classList.contains('hidden')?fi('message-square',11)+' 加上備註・網址（選填）':fi('message-square',11)+' 收起備註・網址');
+}
 function saveTodo(id){
   const title=$('td-title').value.trim(); if(!title){toast('請輸入標題');return;}
-  const obj={title,dueDate:$('td-due').value,done:false,by:ME,updatedBy:ME,updatedAt:Date.now()};
+  const obj={title,dueDate:$('td-due').value,note:$('td-note').value.trim(),url:$('td-url').value.trim(),done:false,by:ME,updatedBy:ME,updatedAt:Date.now()};
   if(!id){ obj.createdAt=Date.now(); fbSet('todos/'+ACTIVE+'/'+uid(),obj); }
   else { const old=DATA.todos[ACTIVE][id]; fbUpdate('todos/'+ACTIVE+'/'+id,{...obj,done:old.done,createdAt:old.createdAt}); }
   closeModal(); toast('已儲存');
@@ -1695,11 +1902,12 @@ function renderMemosSection(){
       </div>`;
     if(!items.length) h+=`<div style="color:var(--text-muted);font-size:12px;padding:4px 6px 8px">尚無項目</div>`;
     else {
-      h+=`<div class="card">`;
+      h+=`<div class="card" id="memo-sec-${sec}">`;
       items.forEach((m,idx)=>{
+        const dragHandle=`<span onpointerdown="memoDragStart(event)" style="cursor:grab;touch-action:none;color:var(--text-muted);flex-shrink:0;display:inline-flex;padding:0 2px">${fi('menu',14)}</span>`;
         const fmt=m.format||'text';
         const hasTitle=!!(m.title&&m.title.trim());
-        const isOpen=_memoOpen[m._id]!==false; // default open
+        const isOpen=_memoOpen[m._id]===true; // 預設收起，展開過的在同一次瀏覽中（切換頁面再回來）會維持展開
         const dueBadge=m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px;font-weight:400">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:'';
         const border=`border-bottom:${idx<items.length-1?'1px solid var(--border-light)':'none'}`;
         // 有標題 → 可收合，標題列 + 內容分開
@@ -1712,9 +1920,10 @@ function renderMemosSection(){
             const cnt=m.text.split('\n').filter(Boolean).length;
             if(cnt>1) countBadge=`<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${cnt} 項</span>`;
           }
-          h+=`<div style="${border}">
+          h+=`<div style="${border}" data-mid="${m._id}">
             <div style="display:flex;align-items:center;gap:6px;padding:10px 12px">
-              <span onclick="_memoOpen['${m._id}']=(_memoOpen['${m._id}']!==false)?false:true;renderMemo()" style="cursor:pointer;color:var(--text-muted);flex-shrink:0;display:inline-flex;transition:transform .18s;transform:rotate(${isOpen?90:0}deg)">${fi('chevron-right',14)}</span>
+              ${dragHandle}
+              <span onclick="_memoOpen['${m._id}']=(_memoOpen['${m._id}']===true)?false:true;renderMemo()" style="cursor:pointer;color:var(--text-muted);flex-shrink:0;display:inline-flex;transition:transform .18s;transform:rotate(${isOpen?90:0}deg)">${fi('chevron-right',14)}</span>
               <span style="flex:1;font-weight:700;font-size:14px;color:var(--text-primary);cursor:pointer;word-break:break-word" onclick="editMemo('${m._id}')">${esc(m.title)}${countBadge}${dueBadge}</span>
               <button class="x-btn" onclick="deleteMemo('${m._id}','${esc(m.title)}')">${fi('x',14)}</button>
             </div>
@@ -1728,7 +1937,8 @@ function renderMemosSection(){
         } else {
           // 無標題 → 直接顯示內容（舊樣式）
           const previewLabel=m.text?(m.text.split('\n')[0].slice(0,20)+(m.text.length>20?'…':'')):'備忘';
-          h+=`<div class="memo-item" style="${border}">
+          h+=`<div class="memo-item" style="${border}" data-mid="${m._id}">
+            ${dragHandle}
             <div class="memo-txt" style="flex:1" onclick="editMemo('${m._id}')">
               ${sec==='link'&&m.url?`<a href="${esc(m.url)}" target="_blank" style="color:var(--primary);font-weight:700" onclick="event.stopPropagation()">${esc(m.text||m.url)}</a>`:
                 fmt==='bullets'?`<div style="line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>`• ${esc(l)}`).join('<br>')}</div>`:
@@ -2140,6 +2350,7 @@ function sbMapCat(s){ return SBCAT_MAP[(s||'').trim()]||'other'; }
 let sbSplitMode='equal', sbEditingId=null;
 let sbSearchQ='';
 let sbPendingRows=[];
+let _sbShowSettled=false;
 
 function sbData(){
   if(!ACTIVE||!DATA.trips||!DATA.trips[ACTIVE]) return {currency:'NT$',expenses:{}};
@@ -2215,7 +2426,7 @@ function sbRenderHome(){
   const allExps=sbExpensesArr().filter(e=>e.type!=='settlement');
   const curTotals={}; allExps.forEach(e=>{ const c=sbExpCur(e); curTotals[c]=(curTotals[c]||0)+e.amount; });
   const totalCurs=Object.keys(curTotals);
-  let h=`<div class="card" style="background:linear-gradient(135deg,var(--warm-dark),var(--warm));color:#fff;padding:16px">
+  let h=`<div class="card" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;padding:16px">
     <div style="font-size:11px;opacity:.85">本趟旅程總支出</div>
     <div style="font-size:26px;font-weight:900;margin:2px 0 10px">${totalCurs.length?totalCurs.map(c=>esc(c)+curTotals[c].toLocaleString()).join('　'):esc(sbCurrency())+'0'}</div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
@@ -2223,30 +2434,57 @@ function sbRenderHome(){
       <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 10px"><div style="font-size:10px;opacity:.8">成員</div><div style="font-size:14px;font-weight:700;margin-top:2px">${sbMembers().length} 人</div></div>
     </div>
   </div>`;
+  // 每種幣別各自算一次餘額/簡化後的還款建議，再合併呈現成單一區塊（不依幣別拆成好幾組淨收付/債務關係）
   const allCurs=sbAllCurrencies();
-  allCurs.forEach(cur=>{
-    const {balances,allNames}=sbCalcBal(cur);
-    const curTag=allCurs.length>1?`<span style="font-size:11px;font-weight:700;color:var(--text-muted);background:var(--bg);border-radius:999px;padding:2px 9px;margin-left:6px">${esc(cur)}</span>`:'';
-    h+=`<div class="sec-title">${fi('trending-up',13)} 淨收付${curTag}</div><div class="card" style="padding:6px 14px">`;
-    if(!allNames.size) h+=`<div class="empty" style="padding:20px 10px">尚無資料</div>`;
-    else h+=[...allNames].map(m=>{
-      const b=balances[m]||0; const cls=b>0.01?'var(--success)':b<-0.01?'var(--danger)':'var(--text-muted)'; const sign=b>0.01?'+':'';
-      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">${sbAvEl(m)}<div style="flex:1;font-weight:700;font-size:14px">${esc(m)}</div><div style="font-weight:900;font-size:14px;color:${cls}">${sign}${esc(cur)}${Math.round(Math.abs(b)).toLocaleString()}</div></div>`;
-    }).join('');
-    h+=`</div>`;
-    const txns=sbSimplify(balances);
-    h+=`<div class="sec-title">${fi('users',13)} 債務關係${curTag}</div><div class="card" style="padding:8px 14px">`;
-    if(!txns.length) h+=`<div style="text-align:center;padding:14px 0;color:var(--success);font-weight:700">✓ 帳目已結清</div>`;
-    else h+=txns.map(t=>`<div style="padding:11px 0;border-bottom:1px solid var(--border-light)">
+  const perCur=allCurs.map(cur=>({cur,...sbCalcBal(cur)}));
+  const allNamesUnion=new Set(); perCur.forEach(pc=>pc.allNames.forEach(n=>allNamesUnion.add(n)));
+  const multiCur=allCurs.length>1;
+
+  // ── 淨收付：每人一列，把此人所有幣別的餘額疊在同一列右側（人多也不會重複出現）──
+  h+=`<div class="sec-title">${fi('trending-up',13)} 淨收付</div><div class="card" style="padding:6px 14px">`;
+  if(!allNamesUnion.size) h+=`<div class="empty" style="padding:20px 10px">尚無資料</div>`;
+  else h+=[...allNamesUnion].map(m=>{
+    const lines=perCur.map(pc=>{
+      const b=pc.balances[m]||0; if(Math.abs(b)<0.01) return '';
+      const cls=b>0.01?'var(--success)':'var(--danger)'; const sign=b>0.01?'+':'-';
+      return `<div style="font-size:13px;font-weight:900">
+        <span style="color:${cls}">${sign}${esc(pc.cur)}${Math.round(Math.abs(b)).toLocaleString()}</span></div>`;
+    }).filter(Boolean);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">${sbAvEl(m)}<div style="flex:1;font-weight:700;font-size:14px">${esc(m)}</div><div style="text-align:right">${lines.length?lines.join(''):'<div style="font-size:12px;color:var(--text-muted)">－</div>'}</div></div>`;
+  }).join('');
+  h+=`</div>`;
+
+  // ── 債務關係：依幣別分組列出簡化後的還款建議（同一種幣別的轉帳收在一起，方便一次結清）──
+  h+=`<div class="sec-title">${fi('users',13)} 債務關係</div><div class="card" style="padding:8px 14px">`;
+  const groups=perCur.map(pc=>({cur:pc.cur,txns:sbSimplify(pc.balances)})).filter(g=>g.txns.length);
+  if(!groups.length) h+=`<div style="text-align:center;padding:14px 0;color:var(--success);font-weight:700">✓ 帳目已結清</div>`;
+  else h+=groups.map((g,gi)=>{
+    const tag=multiCur?`<div style="font-size:11px;font-weight:700;color:var(--primary-dark);background:var(--primary-light);display:inline-block;padding:3px 11px;border-radius:999px;margin:${gi?'16px':'0'} 0 8px">${esc(g.cur)}</div>`:'';
+    const rows=g.txns.map(t=>`<div style="padding:11px 0;border-bottom:1px solid var(--border-light)">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px">${sbAvEl(t.from,40)}<span style="font-size:11px;font-weight:700">${esc(t.from)}</span></div>
-        <div style="flex:1;text-align:center"><div style="font-size:10px;color:var(--text-muted)">需要支付</div><div style="font-size:16px;font-weight:900;color:var(--primary)">${esc(cur)}${Math.round(t.amount).toLocaleString()}</div></div>
+        <div style="flex:1;text-align:center"><div style="font-size:10px;color:var(--text-muted)">需要支付</div><div style="font-size:16px;font-weight:900;color:var(--primary)">${esc(g.cur)}${Math.round(t.amount).toLocaleString()}</div></div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px">${sbAvEl(t.to,40)}<span style="font-size:11px;font-weight:700">${esc(t.to)}</span></div>
       </div>
-      <button class="btn sm ghost full" style="margin-top:8px" onclick="sbOpenSettle('${esc(t.from)}','${esc(t.to)}',${t.amount},'${esc(cur)}')">${fi('check',12)} 已完成付款</button>
+      <button class="btn sm ghost full" style="margin-top:8px" onclick="sbOpenSettle('${esc(t.from)}','${esc(t.to)}',${t.amount},'${esc(g.cur)}')">${fi('check',12)} 標記為已付款</button>
     </div>`).join('');
-    h+=`</div>`;
-  });
+    return tag+rows;
+  }).join('');
+  // 已完成的付款紀錄：預設收起，不佔版面，展開才看得到「付過多少錢」的歷史紀錄
+  const settledList=sbExpensesArr().filter(e=>e.type==='settlement').sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(settledList.length){
+    h+=`<div style="margin-top:${groups.length?'4px':'0'}">
+      <button type="button" onclick="_sbShowSettled=!_sbShowSettled;renderSplitbill()" style="background:none;border:none;color:var(--text-muted);font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer;padding:8px 2px;width:100%">
+        ${fi(_sbShowSettled?'chevron-down':'chevron-right',12)} 已完成的付款（${settledList.length}）
+      </button>
+      ${_sbShowSettled?settledList.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-top:1px solid var(--border-light);font-size:12px">
+        <span style="font-weight:700">${esc(s.payer||'')}</span><span style="color:var(--text-muted)">→</span><span style="font-weight:700">${esc((s.splitDetails&&s.splitDetails[0]&&s.splitDetails[0].name)||'')}</span>
+        <span style="margin-left:auto;font-weight:700;color:var(--success)">${esc(sbExpCur(s))}${Math.round(s.amount||0).toLocaleString()}</span>
+        <span style="color:var(--text-muted);flex-shrink:0">${esc(s.date||'')}</span>
+      </div>`).join(''):''}
+    </div>`;
+  }
+  h+=`</div>`;
   return h;
 }
 
