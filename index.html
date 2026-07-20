@@ -106,10 +106,10 @@
   /* ── ITINERARY ── */
   .day-head{display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius-sm);padding:9px 13px;margin:14px 0 8px;cursor:pointer}
   .day-head .dh-l{display:flex;align-items:center;gap:9px}
-  .day-head-a{background:#c6e4ed}
-  .day-head-a .day-badge{background:#3d8fa3}
-  .day-head-b{background:var(--warm-light)}
-  .day-head-b .day-badge{background:var(--warm)}
+  .day-head-a{background:#cfe0c2}
+  .day-head-a .day-badge{background:#3f5f33}
+  .day-head-b{background:#f0dcb8}
+  .day-head-b .day-badge{background:#7a5527}
   .day-badge{color:#fff;font-weight:900;font-size:13px;padding:3px 10px;border-radius:8px}
   .day-date{font-size:11px;color:var(--text-secondary);font-weight:700}
   .item{display:flex;gap:9px;padding:11px 12px;position:relative}
@@ -122,6 +122,8 @@
   .item-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .item-side{display:flex;flex-direction:row;gap:4px;align-items:flex-start;flex-shrink:0;padding-top:4px}
   .mini-link{font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:7px;background:var(--primary-light)}
+  .day-tint-a .item-time,.day-tint-a .mini-link{color:#3f5f33;background:#e3ecda}
+  .day-tint-b .item-time,.day-tint-b .mini-link{color:#7a5527;background:#f5e8cd}
   .transit{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 40px;color:var(--text-muted);font-size:11px;font-weight:700}
   .transit .tline{flex:1;border-top:1.5px dashed var(--border)}
   .item.dragging{opacity:.5}
@@ -1105,9 +1107,17 @@ function autoCreateDays(tripId,start,end){
 /* ════════════ 行程頁 ════════════ */
 let _openDays={}, _openPolls={}, _memoOpen={};
 let _flightsOpen=false;
+let _itinAutoScrolled=null,_itinScrollTarget=null;
 function renderItin(){
   if(!ACTIVE){ $('itin-wrap').innerHTML=`<div class="empty"><span class="big">${fi('calendar',40)}</span>請先到「旅程」選一趟旅程</div>`; return; }
   const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
+  // 進入這趟旅程的行程頁時，若今天剛好落在某一天，自動展開並捲動到當天（同一趟旅程只自動跳一次，之後使用者自己捲動的位置不會被打斷）
+  if(_itinAutoScrolled!==ACTIVE){
+    _itinAutoScrolled=ACTIVE;
+    const todayStr=new Date().toISOString().slice(0,10);
+    const todayDay=days.find(d=>d.date===todayStr);
+    if(todayDay){ if(_openDays[todayDay._id]===false) _openDays[todayDay._id]=true; _itinScrollTarget=todayDay._id; }
+  }
   let h=`<div style="margin:8px 4px 14px;display:flex;align-items:center;gap:8px"><span style="font-size:22px;font-weight:900;color:var(--text-primary)">${fi('calendar',22)} 完整行程</span></div>`;
 
   // 班機資訊（國際旅遊才顯示）
@@ -1148,14 +1158,16 @@ function renderItin(){
         <span onpointerdown="dayDragStart(event)" onclick="event.stopPropagation()" style="cursor:grab;touch-action:none;display:inline-flex;color:inherit;opacity:.7">${fi('menu',15)}</span>
         <span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
       <span class="day-date">${day.date?fmtDate(day.date):'未設定日期'}</span></div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <button title="從景點庫加入行程" style="padding:3px 6px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-family:inherit;white-space:nowrap" onclick="event.stopPropagation();pickPlaceForDay('${day._id}')">${fi('bookmark',11)} 加入行程</button>
-        ${items.length>=2?`<button title="整天路線" style="margin-left:4px;padding:3px 6px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-family:inherit;white-space:nowrap" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 路線</button>`:''}
+      <div style="display:flex;align-items:center;gap:2px">
+        <button title="從景點庫加入行程" aria-label="從景點庫加入行程" style="padding:5px;background:none;color:inherit;border:none;cursor:pointer;display:inline-flex;align-items:center;opacity:.85" onclick="event.stopPropagation();pickPlaceForDay('${day._id}')">${fi('bookmark',15)}</button>
+        ${items.length>=2?`<button title="整天路線" aria-label="整天路線" style="padding:5px;background:none;color:inherit;border:none;cursor:pointer;display:inline-flex;align-items:center;opacity:.85" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',15)}</button>`:''}
         <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
         <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span>
       </div></div>`;
     if(open){
-      h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
+      const _tint=di%2===0?'#f8faf5':'#fdf9f0';
+      const _tintCls=di%2===0?'day-tint-a':'day-tint-b';
+      h+=`<div class="card ${_tintCls}" style="margin-bottom:6px;background:${_tint}"><div class="day-items" data-day="${day._id}">`;
       if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排</div>`;
       items.forEach((it,ii)=>{
         const _lp=it.placeId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][it.placeId];
@@ -1190,6 +1202,10 @@ function renderItin(){
   h+=`</div>`; // close #days-list
   h+=`<div style="padding:10px 4px 4px"><button class="btn sm gray" style="width:100%;padding:10px;font-size:13px" onclick="addDay()">${fi('plus',14)} 新增天數</button></div>`;
   $('itin-wrap').innerHTML=h;
+  if(_itinScrollTarget){
+    const tid=_itinScrollTarget; _itinScrollTarget=null;
+    setTimeout(()=>{ const el=document.querySelector('[data-did="'+tid+'"]'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },150);
+  }
 }
 function toggleDay(id){ _openDays[id]=_openDays[id]===false?true:false; renderItin(); }
 
