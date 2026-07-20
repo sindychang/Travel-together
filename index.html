@@ -913,7 +913,7 @@ function renderAll(){
     }
   }
   // nav
-  const navDef=[['trips','compass','旅程'],['itin','calendar','行程'],['places','bookmark','收藏'],['memo','check-square','記事'],['tools','settings','工具']];
+  const navDef=[['trips','compass','旅程'],['itin','calendar','行程'],['places','bookmark','景點'],['memo','check-square','記事'],['tools','settings','工具']];
   $('nav').innerHTML=navDef.map(([p,icon,lab])=>`<button class="nav-item${CURPAGE===p?' active':''}" data-page="${p}" onclick="go('${p}')"><span class="ico">${fi(icon,22)}</span><span class="lab">${lab}</span></button>`).join('');
   if(TRIPVIEW==='splitbill'&&trip){
     $('nav').classList.add('hidden');
@@ -1149,14 +1149,14 @@ function renderItin(){
         <span class="day-badge">${esc(day.label||('第'+(di+1)+'天'))}</span>
       <span class="day-date">${day.date?fmtDate(day.date):'未設定日期'}</span></div>
       <div style="display:flex;align-items:center;gap:6px">
-        <button style="padding:3px 8px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit" onclick="event.stopPropagation();pickPlaceForDay('${day._id}')">${fi('bookmark',11)} 從收藏加入</button>
-        ${items.length>=2?`<button style="margin-left:4px;padding:3px 9px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 整天路線</button>`:''}
+        <button title="從景點庫加入行程" style="padding:3px 6px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-family:inherit;white-space:nowrap" onclick="event.stopPropagation();pickPlaceForDay('${day._id}')">${fi('bookmark',11)} 加入行程</button>
+        ${items.length>=2?`<button title="整天路線" style="margin-left:4px;padding:3px 6px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.18);color:inherit;border:1.5px solid rgba(255,255,255,0.55);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-family:inherit;white-space:nowrap" onclick="event.stopPropagation();openDayRoute('${day._id}')">${fi('navigation',11)} 路線</button>`:''}
         <button class="dot-menu-btn" onclick="event.stopPropagation();dayMenu('${day._id}')">${fi('more-horizontal',15)}</button>
         <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span>
       </div></div>`;
     if(open){
       h+=`<div class="card" style="margin-bottom:6px"><div class="day-items" data-day="${day._id}">`;
-      if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排<br><button class="btn sm ghost" style="margin-top:8px" onclick="pickPlaceForDay('${day._id}')">${fi('bookmark',12)} 從收藏加入</button> 或點下方 ＋ 新增</div>`;
+      if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排</div>`;
       items.forEach((it,ii)=>{
         const _lp=it.placeId&&DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][it.placeId];
         h+=`<div class="item" data-day="${day._id}" data-id="${it._id}">
@@ -1306,14 +1306,17 @@ function addItemPrompt(dayId){
   if(!dayId) dayId=days[0]._id;
   editItem(dayId);
 }
+let _itMatchedPlaceId=null,_itEditingNew=true;
 function editItem(dayId,itId){
+  _itMatchedPlaceId=null; _itEditingNew=!itId;
   const it=(itId&&DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][dayId]&&DATA.items[ACTIVE][dayId][itId])||{};
   const days=sortedBy(DATA.days&&DATA.days[ACTIVE],'order');
   const dayOpts=days.map((d,i)=>`<option value="${d._id}" ${d._id===dayId?'selected':''}>${esc(d.label||('第'+(i+1)+'天'))}</option>`).join('');
   modal(`<div class="modal-title">${itId?'編輯行程':'新增行程'}</div>
     <label class="fld">類型</label>
     <div class="seg" id="it-type">${catArr().map(({k,lbl,icon,cls})=>`<button data-v="${k}" class="${(it.type||'spot')===k?'on':''}" onclick="segPick('it-type','${k}')">${fi(icon,13)} ${lbl}</button>`).join('')}</div>
-    <label class="fld">名稱</label><input class="tag-input" id="it-name" placeholder="例：淺草寺" value="${esc(it.name||'')}">
+    <label class="fld">名稱</label><input class="tag-input" id="it-name" placeholder="例：淺草寺" value="${esc(it.name||'')}" oninput="matchExistingPlace(this.value)">
+    <div id="it-name-hint" style="font-size:11px;margin:3px 2px 0;min-height:14px"></div>
     <label class="fld">日期</label><select class="tag-input" id="it-day">${dayOpts}</select>
     <label class="fld">Google Map 連結</label><input class="tag-input" id="it-map" placeholder="貼上地圖連結" value="${esc(it.mapUrl||'')}">
     <div id="it-more-toggle" style="margin:10px 2px 2px">
@@ -1334,7 +1337,7 @@ function editItem(dayId,itId){
     <label class="fld">備註</label><textarea class="tag-input" id="it-note">${esc(it.note||'')}</textarea>
     <div style="display:flex;align-items:center;gap:8px;margin:10px 2px 0;padding:10px 12px;background:var(--warm-light);border-radius:10px;cursor:pointer" onclick="const cb=document.getElementById('it-save-places');cb.checked=!cb.checked">
       <input type="checkbox" id="it-save-places" ${!itId||it.placeId?'checked':''} onclick="event.stopPropagation()" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
-      <label for="it-save-places" style="font-size:13px;cursor:pointer;color:var(--text-primary);line-height:1.3;pointer-events:none">${fi('bookmark',13)} 加入收藏</label>
+      <label for="it-save-places" style="font-size:13px;cursor:pointer;color:var(--text-primary);line-height:1.3;pointer-events:none">${fi('bookmark',13)} 加入景點庫<span style="display:block;font-size:10.5px;color:var(--text-muted);font-weight:400;margin-top:1px">可重複使用、填價格評分</span></label>
     </div>
     <div class="modal-acts">${itId?`<button class="btn danger" onclick="confirmDel('刪除此項目？',()=>{fbRemove('items/${ACTIVE}/${dayId}/${itId}');closeModal()})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveItem('${dayId}','${itId||''}')">儲存</button></div>`);
@@ -1379,8 +1382,8 @@ function saveItem(dayId,itId){
   const obj={type,name,time:$('it-time').value,stayMin:$('it-stay').value,mapUrl:$('it-map').value.trim(),note:$('it-note').value.trim(),transitMode:$('it-mode').value,transitMin:$('it-tmin').value,updatedBy:ME,updatedAt:Date.now()};
   // 取得既有 placeId（從收藏加入行程、或先前已存進收藏）
   const _existItem=itId&&DATA.items&&DATA.items[ACTIVE]&&(DATA.items[ACTIVE][dayId]?.[itId]||DATA.items[ACTIVE][targetDay]?.[itId]);
-  const existPlaceId=_existItem&&_existItem.placeId;
-  if(existPlaceId) obj.placeId=existPlaceId; // 保留連結
+  const existPlaceId=(_existItem&&_existItem.placeId)||(_itEditingNew&&_itMatchedPlaceId)||null;
+  if(existPlaceId) obj.placeId=existPlaceId; // 保留連結（或使用者從名稱比對中選擇帶入的既有景點）
   if(saveToFav){
     const dest=(DATA.trips&&DATA.trips[ACTIVE]&&DATA.trips[ACTIVE].dest)||'';
     const placeData={cat:type,name,area:dest,mapUrl:obj.mapUrl,note:obj.note,updatedBy:ME,updatedAt:Date.now()};
@@ -1402,9 +1405,29 @@ function saveItem(dayId,itId){
     } else { obj.order=(DATA.items[ACTIVE][dayId]&&DATA.items[ACTIVE][dayId][itId]?.order)||0; fbUpdate('items/'+ACTIVE+'/'+dayId+'/'+itId,obj); }
   }
   logChange(itId?'編輯行程項目':'新增行程項目',name);
-  _seg={}; closeModal(); toast(saveToFav?'已儲存並加入收藏 🔖':'已儲存');
+  _seg={}; _itMatchedPlaceId=null; closeModal(); toast(saveToFav?'已儲存並加入景點庫 🔖':'已儲存');
 }
 function itemMenu(dayId,itId){ editItem(dayId,itId); }
+/* 新增行程時，名稱即時比對景點庫是否已有同名景點，避免重複輸入、也能一併帶入既有資料 */
+function matchExistingPlace(val){
+  _itMatchedPlaceId=null;
+  const hint=$('it-name-hint'); if(!hint) return;
+  if(!_itEditingNew){ hint.innerHTML=''; return; }
+  const q=(val||'').trim().toLowerCase();
+  if(q.length<2){ hint.innerHTML=''; return; }
+  const all=Object.keys(DATA.places&&DATA.places[ACTIVE]||{}).map(k=>Object.assign({_id:k},DATA.places[ACTIVE][k]));
+  const hit=all.find(p=>(p.name||'').toLowerCase()===q)||all.find(p=>(p.name||'').toLowerCase().includes(q));
+  hint.innerHTML=hit?`<span style="color:var(--primary);cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:3px" onclick="useMatchedPlace('${hit._id}')">${fi('bookmark',11)} 景點庫已有「${esc(hit.name)}」，點此帶入</span>`:'';
+}
+function useMatchedPlace(pid){
+  const p=DATA.places&&DATA.places[ACTIVE]&&DATA.places[ACTIVE][pid]; if(!p) return;
+  _itMatchedPlaceId=pid;
+  $('it-name').value=p.name||'';
+  if(p.mapUrl) $('it-map').value=p.mapUrl;
+  if(p.note&&$('it-note')) $('it-note').value=p.note;
+  if(p.cat) segPick('it-type',p.cat);
+  const hint=$('it-name-hint'); if(hint) hint.innerHTML=`<span style="color:var(--success);display:inline-flex;align-items:center;gap:3px">${fi('check',11)} 已帶入「${esc(p.name)}」的資料</span>`;
+}
 
 /* 拖拉排序（支援跨天移動） */
 let _drag=null;
@@ -1514,7 +1537,7 @@ function renderPlaces(){
     ${catArr().map(({k,lbl,icon})=>{const n=all.filter(p=>p.cat===k).length;return n?`<button class="chip ${_placeFilter===k?'on':''}" onclick="_placeFilter='${k}';renderPlaces()">${fi(icon,11)} ${lbl} ${n}</button>`:''}).join('')}
   </div>
   <div style="padding:0 0 8px">
-    <input id="place-search" class="tag-input" style="max-width:240px;font-size:13px;padding:6px 10px" placeholder="搜尋名稱或備註…" value="${esc(_placeQuery)}" oninput="_placeQuery=this.value;renderPlaces()">
+    <input id="place-search" class="tag-input" style="max-width:240px;font-size:13px;padding:6px 10px" placeholder="搜尋名稱或備註…" value="${esc(_placeQuery)}" oninput="if(event.isComposing)return;_placeQuery=this.value;renderPlaces()">
   </div>
   </div>`;
   const _pq=_placeQuery.toLowerCase();
@@ -1611,7 +1634,7 @@ function doAddPlace(pid,dayId){
 let _pickDayId=null,_pickQuery='';
 function pickPlaceForDay(dayId){
   const places=Object.keys(DATA.places&&DATA.places[ACTIVE]||{});
-  if(!places.length){ toast('尚無收藏，請先到收藏頁新增'); return; }
+  if(!places.length){ toast('尚無景點，請先到景點頁新增'); return; }
   _pickDayId=dayId; _pickQuery='';
   renderPickPlaceModal(true);
 }
@@ -1624,8 +1647,8 @@ function renderPickPlaceModal(focusSearch){
   const addedIds=new Set(Object.values((DATA.items&&DATA.items[ACTIVE]&&DATA.items[ACTIVE][_pickDayId])||{}).map(it=>it.placeId).filter(Boolean));
   // 記住目前捲動的位置，加入一個景點後重新渲染時維持在原本瀏覽的地方，不用每次都從頭捲
   const prevScroll=$('pick-place-list')?.scrollTop||0;
-  modal(`<div class="modal-title">${fi('bookmark',15)} 從收藏加入 · ${esc(day?.label||'這天')}</div>
-    <input class="tag-input" id="pick-place-q" placeholder="搜尋收藏名稱或區域…" value="${esc(_pickQuery)}" oninput="_pickQuery=this.value;renderPickPlaceModal()">
+  modal(`<div class="modal-title">${fi('bookmark',15)} 從景點庫加入 · ${esc(day?.label||'這天')}</div>
+    <input class="tag-input" id="pick-place-q" placeholder="搜尋收藏名稱或區域…" value="${esc(_pickQuery)}" oninput="if(event.isComposing)return;_pickQuery=this.value;renderPickPlaceModal()">
     <div id="pick-place-list" style="max-height:52vh;overflow-y:auto;margin-top:10px">
       ${list.length?list.map(p=>{const c=TYPES[p.cat]||TYPES.spot; const added=addedIds.has(p._id);
         return `<div style="display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border-light);cursor:pointer;${added?'opacity:.55':''}" onclick="doAddPlace('${p._id}','${_pickDayId}')">
@@ -1633,11 +1656,11 @@ function renderPickPlaceModal(focusSearch){
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">${esc(p.name)}${placeNameExtra(p)}</div>${placeExtraHtml(p)}</div>
           <span style="color:${added?'var(--success)':'var(--primary)'};flex-shrink:0">${added?fi('check-circle',20):fi('plus-circle',20)}</span>
         </div>`;
-      }).join(''):`<div class="empty" style="padding:22px 8px">${q?'找不到符合的收藏':'還沒有收藏，先到收藏頁新增'}</div>`}
+      }).join(''):`<div class="empty" style="padding:22px 8px">${q?'找不到符合的景點':'還沒有景點，先到景點頁新增'}</div>`}
     </div>
     <div class="modal-acts"><button class="btn full gray" onclick="closeModal()">完成</button></div>`);
   const listEl=$('pick-place-list'); if(listEl) listEl.scrollTop=prevScroll;
-  if(focusSearch){ const inp=$('pick-place-q'); if(inp) inp.focus(); }
+  if(focusSearch||_pickQuery){ const inp=$('pick-place-q'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); } }
 }
 
 /* ════════════ Overpass 探索（保留原版） ════════════ */
@@ -2394,6 +2417,7 @@ function renderSplitbill(){
   else if(SBTAB==='records') h+=sbRenderRecords();
   else if(SBTAB==='settings') h+=sbRenderSettings();
   $('splitbill-wrap').innerHTML=h;
+  if(SBTAB==='records'&&sbSearchQ){ const inp=$('sb-search-q'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); } }
 }
 function sbGoTab(t){ SBTAB=t; renderSplitbill(); updateFab(); }
 
@@ -2500,7 +2524,7 @@ function sbRenderRecords(){
   let exps=sbExpensesArr();
   if(sbSearchQ){ const q=sbSearchQ.toLowerCase(); exps=exps.filter(e=>(e.name||'').toLowerCase().includes(q)||(e.payer||'').toLowerCase().includes(q)); }
   exps.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  let h=`<div style="margin:0 0 10px"><input class="tag-input" placeholder="搜尋品項、付款人…" value="${esc(sbSearchQ)}" oninput="sbSearchQ=this.value;renderSplitbill()"></div>`;
+  let h=`<div style="margin:0 0 10px"><input id="sb-search-q" class="tag-input" placeholder="搜尋品項、付款人…" value="${esc(sbSearchQ)}" oninput="if(event.isComposing)return;sbSearchQ=this.value;renderSplitbill()"></div>`;
   const disc=sbExpensesArr().filter(sbHasDiscrepancy);
   if(disc.length){
     h+=`<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:12px;padding:11px 14px;margin-bottom:12px">
