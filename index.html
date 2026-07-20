@@ -88,12 +88,12 @@
   .edit-info{font-size:10px;color:var(--text-muted);margin-top:4px}
 
   /* type colors */
-  .t-spot{background:#eef2ff;color:#4338ca}
-  .t-food{background:#fff1f2;color:#be123c}
-  .t-hotel{background:#ecfeff;color:#0e7490}
-  .t-shop{background:#fff7ed;color:#c2410c}
-  .t-fun{background:var(--warm-light);color:var(--warm)}
-  .t-other{background:#f5f3ff;color:#6d28d9}
+  .t-spot{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
+  .t-food{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}
+  .t-hotel{background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc}
+  .t-shop{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+  .t-fun{background:var(--warm-light);color:var(--warm);border:1px solid #d8cdf0}
+  .t-other{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe}
 
   /* ── TRIP CARD ── */
   .trip-card{cursor:pointer;position:relative}
@@ -1165,7 +1165,7 @@ function renderItin(){
         <span style="color:var(--text-muted)">${fi(open?'chevron-down':'chevron-right',14)}</span>
       </div></div>`;
     if(open){
-      const _tint=di%2===0?'#f8faf5':'#fdf9f0';
+      const _tint=di%2===0?'#f8faf5':'#fdfbf5';
       const _tintCls=di%2===0?'day-tint-a':'day-tint-b';
       h+=`<div class="card ${_tintCls}" style="margin-bottom:6px;background:${_tint}"><div class="day-items" data-day="${day._id}">`;
       if(!items.length) h+=`<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px">這天還沒有安排</div>`;
