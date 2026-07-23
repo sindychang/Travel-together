@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="旅遊行程">
-  <meta name="theme-color" content="#2e6b7a">
+  <meta name="theme-color" content="#35604f">
   <title>旅遊行程規劃</title>
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -24,12 +24,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
   :root{
-    --primary:#2e6b7a;--primary-light:#c6e4ed;--primary-dark:#1d5060;
+    --primary:#35604f;--primary-light:#cfe0d6;--primary-dark:#223f33;
     --accent:#2d9080;--accent2:#47b4a8;
     --warm:#7c5cbf;--warm-light:#ede9f8;--warm-dark:#5b3fa8;
     --success:#10b981;--warning:#d97706;--danger:#dc2626;--danger-light:#fee2e2;
-    --surface:#f5fbfc;--bg:#edf6f7;
-    --border:#b8d4da;--border-light:#dceef3;
+    --surface:#f6faf7;--bg:#eef5f0;
+    --border:#b9d0c4;--border-light:#dbe8e0;
     --text-primary:#1e293b;--text-secondary:#475569;--text-muted:#94a3b8;
     --shadow-sm:0 1px 4px rgba(0,0,0,.07);--shadow-md:0 4px 16px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.14);
     --radius-sm:8px;--radius-md:14px;--radius-lg:20px;
@@ -48,7 +48,7 @@
   .fi{display:inline-block;vertical-align:-3px;flex-shrink:0}
 
   /* ── HEADER ── */
-  .topbar{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
+  .topbar{position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
   .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:680px;margin:0 auto}
   .topbar-title{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;min-width:0}
   .topbar-title .tt-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -97,8 +97,8 @@
 
   /* ── TRIP CARD ── */
   .trip-card{cursor:pointer;position:relative}
-  .trip-cover{height:96px;background:linear-gradient(135deg,var(--primary),var(--accent2));display:flex;align-items:flex-end;padding:12px;color:#fff}
-  .trip-cover.alt{background:linear-gradient(135deg,var(--warm-dark),var(--warm))}
+  .trip-cover{height:96px;background:#7fa66c;display:flex;align-items:flex-end;padding:12px;color:#fff}
+  .trip-cover.alt{background:#e08a63}
   .trip-cover .tc-name{font-size:18px;font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,.3)}
   .trip-meta{padding:10px 13px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);font-weight:600}
   .trip-card.active-trip{border:2px solid var(--primary)}
@@ -202,7 +202,7 @@
   .seg button.on{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
 
   /* ── lock / role ── */
-  .lock{position:fixed;inset:0;background:linear-gradient(160deg,var(--primary),var(--accent));z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
+  .lock{position:fixed;inset:0;background:var(--primary);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
   .lock h1{font-size:26px;margin:0 0 6px;font-weight:900}
   .lock p{opacity:.9;font-size:13px;margin:0 0 26px}
   .role-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;max-width:340px}
@@ -213,7 +213,7 @@
   /* toast */
   .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--text-primary);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;z-index:900;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}
   .toast.show{opacity:1;bottom:104px}
-  .fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;border:none;font-size:26px;box-shadow:var(--shadow-lg);z-index:70;display:flex;align-items:center;justify-content:center}
+  .fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:26px;box-shadow:var(--shadow-lg);z-index:70;display:flex;align-items:center;justify-content:center}
   .fab:active{transform:scale(.92)}
   .row-between{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .x-btn{background:none;border:none;font-size:20px;color:var(--text-muted);padding:4px;display:flex;align-items:center;cursor:pointer}
@@ -236,7 +236,7 @@
 
   /* ── calendar range picker ── */
   .cal-wrap{background:var(--surface);border-radius:var(--radius-md);border:1.5px solid var(--border);overflow:hidden;margin:4px 0}
-  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--primary);color:#fff}
   .cal-nav-btn{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:2px 10px;border-radius:6px;line-height:1}
   .cal-nav-btn:hover{background:rgba(255,255,255,.2)}
   .cal-month-lbl{font-weight:900;font-size:14px}
@@ -265,7 +265,7 @@
   .due-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#fef3c7;color:#92400e;white-space:nowrap}
   .due-tag.over{background:var(--danger-light);color:var(--danger)}
   /* ── per-trip role overlay ── */
-  .role-overlay{position:fixed;inset:0;background:linear-gradient(160deg,var(--primary),var(--accent));z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
+  .role-overlay{position:fixed;inset:0;background:var(--primary);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:#fff;text-align:center}
   .role-overlay.show{display:flex;animation:fade .25s}
   .role-overlay h1{font-size:22px;margin:0 0 6px;font-weight:900}
   .role-overlay p{opacity:.9;font-size:13px;margin:0 0 20px}
@@ -979,6 +979,7 @@ function tripMenu(id){
   modal(`<div class="modal-title">${esc(t.name)}</div>
     <button class="btn full ghost" style="margin-top:14px" onclick="closeModal();selectTrip('${id}')">${fi('calendar',14)} 查看行程</button>
     <button class="btn full gray" style="margin-top:8px" onclick="closeModal();editTrip('${id}')">${fi('edit-2',14)} 編輯資訊</button>
+    <button class="btn full gray" style="margin-top:8px" onclick="closeModal();duplicateTrip('${id}')">${fi('copy',14)} 複製旅程</button>
     <button class="btn full gray" style="margin-top:8px" onclick="closeModal();shareTrip('${id}')">${fi('share-2',14)} 邀請連結</button>
     ${t.inviteCode?`<button class="btn full gray" style="margin-top:8px" onclick="closeModal();showInviteCode('${id}')">${fi('key',14)} 查看邀請碼</button>`:''}
     <button class="btn full danger" style="margin-top:8px" onclick="confirmDel('刪除「${esc(t.name).replace(/'/g,'')}」？所有資料會一起刪除',()=>{delTrip('${id}');closeModal()})">${fi('trash-2',14)} 刪除旅程</button>`);
@@ -988,6 +989,25 @@ function delTrip(id){
   ['trips/'+id,'days/'+id,'items/'+id,'places/'+id,'memos/'+id,'todos/'+id,'flights/'+id].forEach(p=>setDeep(DATA,p,null));
   saveData(); scheduleRender();
   if(db) ['trips','days','items','places','memos','todos','flights'].forEach(k=>ref(k+'/'+id).remove().catch(()=>{}));
+}
+function duplicateTrip(id){
+  const t=DATA.trips&&DATA.trips[id]; if(!t) return;
+  modal(`<div class="modal-title">${fi('copy',15)} 複製旅程</div>
+    <p style="font-size:12px;color:var(--text-muted);margin:8px 2px 12px;line-height:1.6">會複製「景點庫」裡收藏的景點，下次去同地點不用重新收藏；行程天數、成員、記事、待辦不會複製，之後可另外設定新的日期。</p>
+    <label class="fld">新旅程名稱</label><input class="tag-input" id="dup-name" value="${esc((t.name||'')+' 複製')}">
+    <div class="modal-acts"><button class="btn full" onclick="doDuplicateTrip('${id}')">建立複本</button></div>`);
+}
+function doDuplicateTrip(id){
+  const t=DATA.trips&&DATA.trips[id]; if(!t) return;
+  const name=($('dup-name').value||'').trim()||((t.name||'')+' 複製');
+  const newId=uid();
+  const obj={name,type:t.type||'international',dest:t.dest||'',currency:t.currency||'',useNaver:!!t.useNaver,createdAt:Date.now(),updatedBy:ME,updatedAt:Date.now()};
+  fbSet('trips/'+newId,obj);
+  const places=DATA.places&&DATA.places[id];
+  if(places&&Object.keys(places).length) fbSet('places/'+newId,places);
+  logChange('複製旅程',name);
+  closeModal(); toast('已建立複本 🔖 記得設定新的日期');
+  setTimeout(()=>editTrip(newId),300);
 }
 function shareTrip(id){
   const t=DATA.trips[id];
@@ -2085,7 +2105,7 @@ function renderTools(){
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('users',13)} 旅程成員</div>
     <div class="card" style="padding:12px">
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.7">管理成員名單，加入旅程時可從這裡選擇身分。</p>
-      ${_roleArr.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${_roleArr.map(r=>`<div style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:4px 12px 4px 10px"><span style="font-size:18px">${r.emoji||'😎'}</span><span style="font-size:13px;font-weight:700">${esc(r.name)}</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 0 0 6px;font-size:13px;line-height:1" onclick="confirmDel('移除「${esc(r.name).replace(/['"]/g,'')}」？',()=>fbRemove('trips/${ACTIVE}/roles/${r.k}'))">${fi('x',11)}</button></div>`).join('')}</div>`:'<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">尚無成員</p>'}
+      ${_roleArr.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${_roleArr.map(r=>`<div style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1.5px solid var(--border);border-radius:999px;padding:4px 8px 4px 10px"><span style="font-size:18px">${r.emoji||'😎'}</span><span style="font-size:13px;font-weight:700">${esc(r.name)}</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 2px;font-size:12px;line-height:1;display:inline-flex" onclick="editRoleName('${ACTIVE}','${r.k}')">${fi('edit-2',12)}</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 2px;font-size:13px;line-height:1;display:inline-flex" onclick="confirmDel('移除「${esc(r.name).replace(/['"]/g,'')}」？',()=>fbRemove('trips/${ACTIVE}/roles/${r.k}'))">${fi('x',11)}</button></div>`).join('')}</div>`:'<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">尚無成員</p>'}
       <button class="btn sm" style="margin-top:4px" onclick="addRoleWithPicker()">${fi('user-plus',13)} 新增成員</button>
     </div>`;
   h+=`<div style="font-weight:900;font-size:13px;color:var(--text-secondary);margin:18px 4px 6px">${fi('database',13)} 資料備份與還原</div>
@@ -2111,6 +2131,17 @@ function renderTools(){
       <div id="changelog-content"><div style="color:var(--text-muted);font-size:12px">載入中…</div></div>
     </div>`;
   $('tools-wrap').innerHTML=h; doFx(); loadSnapshots(); loadChangelog();
+}
+function editRoleName(tripId,roleKey){
+  const roles=tripRoles(tripId); const role=roles[roleKey]; if(!role) return;
+  appPrompt('修改成員名稱',role.name,n=>{
+    if(!n||!n.trim())return;
+    const newName=n.trim(); if(newName===role.name)return;
+    const oldName=role.name;
+    fbUpdate('trips/'+tripId+'/roles/'+roleKey,{name:newName});
+    if(ME===oldName){ setMeForTrip(tripId,newName); syncMe(); }
+    toast('已更新名稱'); renderAll();
+  });
 }
 function toolsAddRole(){
   const n=$('role-add-name')?.value.trim(); if(!n)return;
