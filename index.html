@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="旅遊行程">
-  <meta name="theme-color" content="#35604f">
+  <meta name="theme-color" content="#505667">
   <title>旅遊行程規劃</title>
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -24,12 +24,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
   :root{
-    --primary:#35604f;--primary-light:#cfe0d6;--primary-dark:#223f33;
-    --accent:#2d9080;--accent2:#47b4a8;
-    --warm:#7c5cbf;--warm-light:#ede9f8;--warm-dark:#5b3fa8;
+    --primary:#5887b3;--primary-light:#dce8f4;--primary-dark:#3d6494;
+    --accent:#74a19f;--accent2:#8db8b6;
+    --warm:#e2866b;--warm-light:#fae8e2;--warm-dark:#c0634e;
     --success:#10b981;--warning:#d97706;--danger:#dc2626;--danger-light:#fee2e2;
-    --surface:#f6faf7;--bg:#eef5f0;
-    --border:#b9d0c4;--border-light:#dbe8e0;
+    --surface:#f6f5fa;--bg:#f2f1f8;
+    --border:#c4c6d5;--border-light:#dcdde8;
     --text-primary:#1e293b;--text-secondary:#475569;--text-muted:#94a3b8;
     --shadow-sm:0 1px 4px rgba(0,0,0,.07);--shadow-md:0 4px 16px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.14);
     --radius-sm:8px;--radius-md:14px;--radius-lg:20px;
@@ -48,14 +48,14 @@
   .fi{display:inline-block;vertical-align:-3px;flex-shrink:0}
 
   /* ── HEADER ── */
-  .topbar{position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
+  .topbar{position:sticky;top:0;z-index:50;background:#404e62;color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
   .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:680px;margin:0 auto}
   .topbar-title{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;min-width:0}
   .topbar-title .tt-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-sub{font-size:11px;opacity:.85;margin-top:1px;font-weight:500}
   .sync-badge{font-size:10px;opacity:.7;white-space:nowrap;text-align:right}
   .me-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
-  .me-btn .me-dot{width:8px;height:8px;border-radius:50%;background:#a7f3d0}
+  .me-btn .me-dot{width:8px;height:8px;border-radius:50%;background:#b8d4ee}
 
   /* ── NAV ── */
   .nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 4px calc(env(safe-area-inset-bottom,0px) + 8px);z-index:80;box-shadow:0 -2px 16px rgba(0,0,0,.05)}
@@ -97,19 +97,22 @@
 
   /* ── TRIP CARD ── */
   .trip-card{cursor:pointer;position:relative}
-  .trip-cover{height:96px;background:#7fa66c;display:flex;align-items:flex-end;padding:12px;color:#fff}
-  .trip-cover.alt{background:#e08a63}
+  .trip-cover{height:96px;background:linear-gradient(150deg,#4a7aaa 0%,#2d5882 100%);display:flex;align-items:flex-end;padding:12px;color:#fff}
+  .trip-cover.alt{background:linear-gradient(150deg,#4a7268 0%,#2d5248 100%)}
+  .trip-cover.done-a{background:linear-gradient(150deg,#6a94b5 0%,#456888 100%);filter:brightness(.92) saturate(.75)}
+  .trip-cover.done-b{background:linear-gradient(150deg,#5e8a78 0%,#3d6256 100%);filter:brightness(.92) saturate(.75)}
   .trip-cover .tc-name{font-size:18px;font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .trip-cover .tc-sub{font-size:11px;color:rgba(255,255,255,.8);margin-top:3px;font-weight:600}
   .trip-meta{padding:10px 13px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);font-weight:600}
   .trip-card.active-trip{border:2px solid var(--primary)}
 
   /* ── ITINERARY ── */
   .day-head{display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius-sm);padding:9px 13px;margin:14px 0 8px;cursor:pointer}
   .day-head .dh-l{display:flex;align-items:center;gap:9px}
-  .day-head-a{background:#cfe0c2}
-  .day-head-a .day-badge{background:#3f5f33}
-  .day-head-b{background:#f0dcb8}
-  .day-head-b .day-badge{background:#7a5527}
+  .day-head-a{background:#cfe0d5}
+  .day-head-a .day-badge{background:#446858}
+  .day-head-b{background:#f5e3dd}
+  .day-head-b .day-badge{background:#a05c4a}
   .day-badge{color:#fff;font-weight:900;font-size:13px;padding:3px 10px;border-radius:8px}
   .day-date{font-size:11px;color:var(--text-secondary);font-weight:700}
   .item{display:flex;gap:9px;padding:11px 12px;position:relative}
@@ -122,8 +125,8 @@
   .item-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .item-side{display:flex;flex-direction:row;gap:4px;align-items:flex-start;flex-shrink:0;padding-top:4px}
   .mini-link{font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:7px;background:var(--primary-light)}
-  .day-tint-a .item-time,.day-tint-a .mini-link{color:#3f5f33;background:#e3ecda}
-  .day-tint-b .item-time,.day-tint-b .mini-link{color:#7a5527;background:#f5e8cd}
+  .day-tint-a .item-time,.day-tint-a .mini-link{color:#446858;background:#d5e8dd}
+  .day-tint-b .item-time,.day-tint-b .mini-link{color:#a05c4a;background:#f5e3dd}
   .transit{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 40px;color:var(--text-muted);font-size:11px;font-weight:700}
   .transit .tline{flex:1;border-top:1.5px dashed var(--border)}
   .item.dragging{opacity:.5}
@@ -136,7 +139,7 @@
   /* ── flights ── */
   .flight-card{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--border-light)}
   .flight-card:last-child{border-bottom:none}
-  .flight-icon{width:36px;height:36px;background:#f0f9ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .flight-icon{width:36px;height:36px;background:#dce8f4;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
   .flight-body{flex:1;min-width:0}
   .flight-no{font-weight:900;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .flight-time{font-size:12px;color:var(--text-secondary);margin-top:2px}
@@ -600,7 +603,7 @@ function updateSyncBadge(ok){
     const h=t.getHours().toString().padStart(2,'0'), m=t.getMinutes().toString().padStart(2,'0');
     const diffMin=Math.floor((Date.now()-LAST_SYNC)/60000);
     const ago=diffMin<1?'剛才':diffMin<60?diffMin+'分鐘前':Math.floor(diffMin/60)+'小時前';
-    el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#a7f3d0;flex-shrink:0;display:inline-block"></span>雲端同步 ${h}:${m}（${ago}）</span>`;
+    el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#b8d4ee;flex-shrink:0;display:inline-block"></span>雲端同步 ${h}:${m}（${ago}）</span>`;
     if(!_badgeTimer) _badgeTimer=setInterval(()=>{ if(LAST_SYNC) updateSyncBadge(true); },60000);
   } else {
     const color=db?'#fcd34d':'#94a3b8';
@@ -943,29 +946,55 @@ function toggleTripView(){
 }
 
 /* ════════════ 旅程頁 ════════════ */
+let _doneOpen=false;
+function toggleDoneSection(){_doneOpen=!_doneOpen;renderTrips();}
 function renderTrips(){
   const trips=DATA.trips||{};
   const arr=Object.keys(trips).map(k=>Object.assign({_id:k},trips[k])).filter(t=>canSeeTrip(t._id)).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const today=new Date().toISOString().slice(0,10);
+  const active=arr.filter(t=>!t.endDate||t.endDate>=today);
+  const done=arr.filter(t=>t.endDate&&t.endDate<today);
   let h=`<div class="row-between"><div class="sec-title" style="margin:6px 4px">${fi('compass',15)} 我的旅程</div>
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn sm ghost" onclick="joinByCode()">${fi('key',13)} 邀請碼</button>
       <button class="btn sm" onclick="editTrip()">${fi('plus',13)} 新增</button>
     </div></div><div style="height:10px"></div>`;
-  if(!arr.length) h+=`<div class="empty"><span class="big">✈️</span>還沒有旅程<br>點右下角 ＋ 建立第一趟旅程！</div>`;
-  else h+=arr.map((t,i)=>{
-    const days=DATA.days&&DATA.days[t._id]?Object.keys(DATA.days[t._id]).length:0;
-    const act=t._id===ACTIVE?'active-trip':'';
-    return `<div class="card trip-card ${act}" onclick="selectTrip('${t._id}')">
-      <div class="trip-cover${i%2===1?' alt':''}" style="${t.color?'background:'+t.color:''}">
-        <div style="flex:1"><div class="tc-name">${esc(t.name)}</div></div>
-        <button class="dot-menu-btn" style="color:#fff" onclick="event.stopPropagation();tripMenu('${t._id}')">${fi('more-horizontal',18)}</button>
-      </div>
-      <div class="trip-meta">
-        <span>${fi('map-pin',12)} ${esc(t.dest||'未設定地點')}</span>
-        <span>${t.startDate?t.startDate.replace(/-/g,'/')+(t.endDate?' ~ '+t.endDate.replace(/-/g,'/'):'')+' · ':''} ${days}天</span>
-      </div>
-    </div>`;
-  }).join('');
+  if(!arr.length){ h+=`<div class="empty"><span class="big">✈️</span>還沒有旅程<br>點右下角 ＋ 建立第一趟旅程！</div>`; }
+  else{
+    function tripCard(t,i,isDone){
+      const roles=(DATA.trips[t._id]&&DATA.trips[t._id].roles)||{};
+      const pplCount=Object.keys(roles).length;
+      const days=DATA.days&&DATA.days[t._id]?Object.keys(DATA.days[t._id]).length:0;
+      const act=t._id===ACTIVE?'active-trip':'';
+      const dateStr=t.startDate?t.startDate.replace(/-/g,'/')+(t.endDate?' – '+t.endDate.replace(/-/g,'/'):''):'';
+      const pplStr=pplCount>0?` · ${pplCount} 人`:'';
+      const coverCls=isDone?(i%2===1?'done-b':'done-a'):(i%2===1?'alt':'');
+      return `<div class="card trip-card ${act}" onclick="selectTrip('${t._id}')">
+        <div class="trip-cover ${coverCls}" style="${t.color?'background:'+t.color:''}">
+          <div style="flex:1">
+            <div class="tc-name">${esc(t.name)}</div>
+            ${dateStr||pplStr?`<div class="tc-sub">${dateStr}${pplStr}</div>`:''}
+          </div>
+          <button class="dot-menu-btn" style="color:#fff" onclick="event.stopPropagation();tripMenu('${t._id}')">${fi('more-horizontal',18)}</button>
+        </div>
+        <div class="trip-meta">
+          <span>${fi('map-pin',12)} ${esc(t.dest||'未設定地點')}</span>
+          <span>${days?days+'天行程':''}</span>
+        </div>
+      </div>`;
+    }
+    if(active.length){
+      h+=`<div class="sec-title">${fi('navigation',14)} 進行中</div>`;
+      h+=active.map((t,i)=>tripCard(t,i,false)).join('');
+    }
+    if(done.length){
+      h+=`<div class="sec-title" style="margin-top:18px;cursor:pointer" onclick="toggleDoneSection()">
+        ${fi('check-circle',14)} 已完成（${done.length}）
+        <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">${_doneOpen?fi('chevron-up',13):fi('chevron-down',13)}</span>
+      </div>`;
+      if(_doneOpen) h+=done.map((t,i)=>tripCard(t,i,true)).join('');
+    }
+  }
   $('trips-wrap').innerHTML=h;
 }
 function selectTrip(id){
