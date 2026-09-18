@@ -49,11 +49,11 @@
 
   /* ── HEADER ── */
   .topbar{position:sticky;top:0;z-index:50;background:#404e62;color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;box-shadow:var(--shadow-md)}
-  .topbar-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;max-width:680px;margin:0 auto}
+  .topbar-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;max-width:680px;margin:0 auto;min-height:48px}
   .topbar-title{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;min-width:0}
   .topbar-title .tt-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .topbar-sub{font-size:11px;opacity:.85;margin-top:1px;font-weight:500}
-  .sync-badge{font-size:10px;opacity:.7;white-space:nowrap;text-align:right}
+  .topbar-sub{font-size:11px;opacity:.85;margin-top:1px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sync-badge{font-size:10px;opacity:.7;white-space:nowrap;text-align:right;min-height:13px}
   .me-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
   .me-btn .me-dot{width:8px;height:8px;border-radius:50%;background:#b8d4ee}
 
@@ -1242,8 +1242,7 @@ function renderItin(){
           <div class="item-handle" onpointerdown="dragStart(event,'${day._id}','${it._id}')">${fi('menu',16)}</div>
           <div class="item-body" onclick="itemMenu('${day._id}','${it._id}')">
             ${(it.time||it.stayMin)?`<div class="item-top"><span class="item-time">${fi('clock',11)} ${it.time&&it.stayMin>0?esc(it.time)+'–'+esc(addMinToTime(it.time,it.stayMin)):esc(it.time||('停留 '+it.stayMin+' 分'))}</span></div>`:''}
-            <div class="item-name">${esc(it.name)}${placeNameExtra(_lp)}</div>
-            ${placeExtraHtml(_lp)}
+            <div class="item-name">${esc(it.name)}</div>
             ${it.note?`<div class="item-note">${esc(it.note)}</div>`:''}
             <div id="map-${it._id}"></div>
           </div>
