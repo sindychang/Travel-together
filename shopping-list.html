@@ -110,11 +110,14 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
 .store-header{
   display:flex;align-items:center;gap:6px;
   padding:9px 11px;
-  background:var(--primary-light);
+  background:#dde4f0;
   border-bottom:1px solid var(--line);
   cursor:pointer;user-select:none;
 }
 .store-header.hdr-closed{border-bottom:none;}
+/* 跳色：藍(偶) / 橘(奇) */
+.store-header.hc-blue{background:#dde4f0;}
+.store-header.hc-orange{background:#f0e5d8;}
 .store-chevron{
   width:20px;height:20px;display:flex;align-items:center;justify-content:center;
   flex-shrink:0;color:var(--ink-soft);transition:transform .2s;
@@ -123,15 +126,18 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
 .store-chevron svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
 .store-header-main{flex:1;min-width:0;}
 .store-name-row{display:flex;align-items:center;gap:5px;overflow:hidden;}
-.store-name{font-weight:900;font-size:15px;color:var(--primary-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0;}
+.store-name{font-weight:900;font-size:15px;color:#2d3d58;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0;}
+.hc-orange .store-name{color:#5a2e1a;}
 .store-tag{
   font-size:11px;font-weight:500;border-radius:4px;padding:1px 6px;
-  background:#c4d8e4;color:#4d6b76;white-space:nowrap;flex-shrink:0;
+  background:rgba(0,0,0,.09);color:#2d3d58;white-space:nowrap;flex-shrink:0;
 }
-.store-count{font-size:11px;color:var(--ink-soft);background:#fff;border-radius:999px;padding:2px 8px;font-weight:700;flex-shrink:0;border:1px solid var(--line);}
+.hc-orange .store-tag{color:#5a2e1a;}
+.store-count{font-size:11px;color:var(--ink-soft);background:rgba(255,255,255,.7);border-radius:999px;padding:2px 8px;font-weight:700;flex-shrink:0;border:1px solid rgba(0,0,0,.1);}
 .store-btns{display:flex;gap:5px;flex-shrink:0;position:relative;}
-.store-menu-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;border:none;background:#c8dde8;color:var(--primary);cursor:pointer;flex-shrink:0;transition:background .15s;padding:0;}
-.store-menu-btn:hover{background:#afd2e0;}
+.store-menu-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;border:none;background:rgba(0,0,0,.1);color:#2d3d58;cursor:pointer;flex-shrink:0;transition:background .15s;padding:0;}
+.store-menu-btn:hover{background:rgba(0,0,0,.16);}
+.hc-orange .store-menu-btn{color:#5a2e1a;}
 .store-menu-btn svg{width:14px;height:14px;fill:currentColor;}
 .store-menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);z-index:50;min-width:120px;overflow:hidden;display:none;}
 .store-menu.open{display:block;}
@@ -582,8 +588,9 @@ function renderStore(s,si){
   const pendingAll=allItems.filter(it=>!it.done);
   const showD=_showDone[si];
   const isOpen=_storeOpen[si]!==false;
+  const hc=si%2===0?'hc-blue':'hc-orange';
   return `<div class="store-card">
-    <div class="store-header${isOpen?'':' hdr-closed'}" onclick="toggleStore(${si})">
+    <div class="store-header ${hc}${isOpen?'':' hdr-closed'}" onclick="toggleStore(${si})">
       <div class="store-chevron${isOpen?'':' closed'}">
         <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
