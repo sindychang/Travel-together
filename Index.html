@@ -176,6 +176,21 @@
   .cb.on::after{content:'';width:4px;height:8px;border:2px solid #fff;border-top:none;border-left:none;transform:rotate(40deg) translateY(-1px)}
   .memo-txt{flex:1;font-size:14px;line-height:1.5;word-break:break-word}
   .memo-txt.done{text-decoration:line-through;color:var(--text-muted)}
+  /* ── memo rich editor ── */
+  .memo-fmt-bar{display:flex;gap:4px;margin-bottom:6px;}
+  .mfb{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:3px;font-family:inherit;}
+  .mfb.active{background:#e8f4f3;color:var(--primary);border-color:var(--primary);}
+  .memo-editor{min-height:120px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.75;color:var(--text-primary);background:var(--bg);outline:none;font-family:inherit;counter-reset:memo-num;word-break:break-word;-webkit-user-modify:read-write-plaintext-only;}
+  .memo-editor:focus{border-color:var(--primary);}
+  .me-line{min-height:1.75em;outline:none;position:relative;padding-left:0;}
+  .me-line[data-type="bullet"]{padding-left:14px;}
+  .me-line[data-type="bullet"]::before{content:"•";position:absolute;left:0;color:var(--text-secondary);}
+  .me-line[data-type="numbered"]{padding-left:22px;counter-increment:memo-num;}
+  .me-line[data-type="numbered"]::before{content:counter(memo-num)". ";position:absolute;left:0;color:var(--text-muted);}
+  .me-line[data-type="check"]{padding-left:20px;}
+  .me-line[data-type="check"]::before{content:"☐";position:absolute;left:0;color:var(--text-secondary);}
+  .me-line[data-type="check"].done::before{content:"☑";color:var(--success);}
+  .me-line[data-type="check"].done{color:var(--text-muted);text-decoration:line-through;}
 
   /* ── poll ── */
   .poll-opt{padding:10px 12px;border-bottom:1px solid var(--border-light)}
@@ -2013,21 +2028,13 @@ function renderMemosSection(){
       h+=`<div class="card" id="memo-sec-${sec}">`;
       items.forEach((m,idx)=>{
         const dragHandle=`<span onpointerdown="memoDragStart(event)" style="cursor:grab;touch-action:none;color:var(--text-muted);flex-shrink:0;display:inline-flex;padding:0 2px">${fi('menu',14)}</span>`;
-        const fmt=m.format||'text';
         const hasTitle=!!(m.title&&m.title.trim());
-        const isOpen=_memoOpen[m._id]===true; // 預設收起，展開過的在同一次瀏覽中（切換頁面再回來）會維持展開
+        const isOpen=_memoOpen[m._id]===true;
         const dueBadge=m.dueDate?`<span class="due-tag ${m.dueDate<=todayStr?'over':''}" style="margin-left:6px;font-weight:400">${fi('clock',9)} 截止 ${fmtDateShort(m.dueDate)}</span>`:'';
         const border=`border-bottom:${idx<items.length-1?'1px solid var(--border-light)':'none'}`;
-        // 有標題 → 可收合，標題列 + 內容分開
+        const countBadge=_memoBadge(m);
+        // 有標題 → 可收合
         if(hasTitle){
-          let countBadge='';
-          if(fmt==='checklist'&&m.items&&m.items.length){
-            const done=m.items.filter(i=>i.d).length;
-            countBadge=`<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${done}/${m.items.length}</span>`;
-          } else if(fmt==='bullets'&&m.text){
-            const cnt=m.text.split('\n').filter(Boolean).length;
-            if(cnt>1) countBadge=`<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${cnt} 項</span>`;
-          }
           h+=`<div style="${border}" data-mid="${m._id}">
             <div style="display:flex;align-items:center;gap:6px;padding:10px 12px">
               ${dragHandle}
@@ -2038,25 +2045,17 @@ function renderMemosSection(){
                 <button class="x-btn" onclick="event.stopPropagation();deleteMemo('${m._id}','${esc(m.title)}')">${fi('trash-2',14)}</button>
               </div>
             </div>
-            ${isOpen?`<div style="padding:0 12px 10px 56px">
-              ${m.text?(fmt==='bullets'?`<div style="font-size:13px;color:var(--text-secondary);line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>'• '+esc(l)).join('<br>')}</div>`:
-                fmt==='checklist'?`<div style="font-size:13px">${renderChecklistItems(m)}</div>`:
-                `<div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.65">${esc(m.text||'').replace(/\n/g,'<br>')}</div>`):''}
-              ${renderMemoLinks(m)}
-            </div>`:''}
+            ${isOpen?`<div style="padding:0 12px 10px 56px">${renderMemoContent(m)}${renderMemoLinks(m)}</div>`:''}
           </div>`;
         } else {
-          // 無標題 → 直接顯示內容（舊樣式）
+          // 無標題 → 直接顯示
           const previewLabel=m.text?(m.text.split('\n')[0].slice(0,20)+(m.text.length>20?'…':'')):'備忘';
           const linksHtml=renderMemoLinks(m);
           h+=`<div style="${border};padding:10px 12px" data-mid="${m._id}">
             <div style="display:flex;gap:9px;align-items:flex-start">
               ${dragHandle}
               <div class="memo-txt" style="flex:1" onclick="editMemo('${m._id}')">
-                ${fmt==='bullets'?`<div style="line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>'• '+esc(l)).join('<br>')}</div>`:
-                  fmt==='checklist'?renderChecklistItems(m):
-                  esc(m.text||'').replace(/\n/g,'<br>')}
-                ${dueBadge}
+                ${renderMemoContent(m)}${dueBadge}
               </div>
               <div style="display:flex;gap:2px;flex-shrink:0">
                 <button class="x-btn" onclick="event.stopPropagation();editMemo('${m._id}')">${fi('edit-2',14)}</button>
@@ -2110,23 +2109,182 @@ function renderMemoLinks(m){
   return valid.map(lnk=>`<a href="${esc(lnk.url)}" target="_blank" onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;color:#4e8a87;font-size:13px;font-weight:600;text-decoration:none;padding:3px 0">${fi('external-link',13)} ${esc(lnk.name||lnk.url)}</a>`).join('');
 }
 function addMemoPrompt(sec){ editMemo(null,sec||'need'); }
+
+/* ── memo rich editor helpers ── */
+function _memoOldToLines(m){
+  const fmt=m.format||'text';
+  if(fmt==='checklist'&&m.items&&m.items.length) return m.items.map(it=>({type:'check',text:it.t||'',done:!!it.d}));
+  const text=m.text||''; if(!text) return [];
+  return text.split('\n').map(line=>(!line.trim()?{type:'gap',text:''}:{type:fmt==='bullets'?'bullet':'text',text:line}));
+}
+function _memoLinesToDom(lines,ed){
+  ed.innerHTML='';
+  const arr=(lines&&lines.length)?lines:[{type:'text',text:''}];
+  arr.forEach(l=>{
+    const div=document.createElement('div'); div.className='me-line';
+    const t=(l.type==='gap')?'text':(l.type||'text');
+    div.dataset.type=t;
+    if(t==='check'&&l.done){div.classList.add('done');div.dataset.done='1';}
+    div.textContent=l.text||'';
+    if(!div.textContent)div.innerHTML='<br>';
+    ed.appendChild(div);
+  });
+}
+function getMemoEditorLines(){
+  const ed=$('m-editor'); if(!ed) return [];
+  return Array.from(ed.querySelectorAll('.me-line')).map(d=>{
+    const type=d.dataset.type||'text';
+    const text=(d.innerText||'').replace(/\n/g,'').trim();
+    return {type,text,done:d.dataset.done==='1'};
+  });
+}
+function memoFmt(type){
+  const ed=$('m-editor'); if(!ed) return;
+  const sel=window.getSelection(); let node=sel&&sel.anchorNode;
+  while(node&&node.parentElement!==ed) node=node.parentElement;
+  if(!node||!node.classList?.contains('me-line')) node=ed.lastElementChild;
+  if(!node) return;
+  node.dataset.type=type;
+  node.className='me-line'+(type==='check'&&node.dataset.done==='1'?' done':'');
+  _updateMFB(type); ed.focus();
+}
+function _updateMFB(type){
+  ['text','bullet','numbered','check'].forEach(t=>{ const b=$('mfb-'+t); if(b) b.classList.toggle('active',t===type); });
+}
+function _moveCursorEnd(el){
+  const r=document.createRange(),s=window.getSelection();
+  r.selectNodeContents(el); r.collapse(false); s.removeAllRanges(); s.addRange(r);
+}
+function _initMemoEditor(lines){
+  const ed=$('m-editor'); if(!ed) return;
+  _memoLinesToDom(lines,ed);
+  _updateMFB((lines&&lines[0]&&lines[0].type)||'text');
+
+  ed.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const sel=window.getSelection(); if(!sel.rangeCount) return;
+      const curRange=sel.getRangeAt(0);
+      // Find .me-line ancestor
+      let node=curRange.startContainer;
+      while(node&&(!node.classList||!node.classList.contains('me-line'))) node=node.parentElement;
+      if(!node||node.parentElement!==ed) return;
+      const curType=node.dataset.type||'text';
+      // Empty bullet/check/numbered → convert to text (like iPhone Notes)
+      if(!(node.innerText||'').replace(/\n/g,'').trim()&&curType!=='text'){
+        node.dataset.type='text'; node.className='me-line'; _updateMFB('text'); return;
+      }
+      // Split at cursor: extract text after cursor into new div
+      const afterRange=document.createRange();
+      afterRange.selectNodeContents(node);
+      afterRange.setStart(curRange.startContainer,curRange.startOffset);
+      const afterFrag=afterRange.extractContents();
+      const afterText=(afterFrag.textContent||'');
+      // Ensure current line is not visually empty
+      if(!(node.textContent||'').trim()) node.innerHTML='<br>';
+      const newDiv=document.createElement('div'); newDiv.className='me-line';
+      newDiv.dataset.type=curType;
+      if(curType==='check'&&node.dataset.done==='1'){newDiv.classList.add('done');newDiv.dataset.done='1';}
+      newDiv.textContent=afterText;
+      if(!afterText) newDiv.innerHTML='<br>';
+      if(node.nextSibling) ed.insertBefore(newDiv,node.nextSibling); else ed.appendChild(newDiv);
+      const r=document.createRange(),s=window.getSelection(); r.setStart(newDiv,0); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+    } else if(e.key==='Backspace'){
+      const sel=window.getSelection(); let node=sel&&sel.anchorNode;
+      while(node&&node.parentElement!==ed) node=node.parentElement;
+      if(node&&node.classList?.contains('me-line')){
+        const txt=(node.innerText||'').replace(/\n/g,'').trim();
+        if(!txt&&ed.querySelectorAll('.me-line').length>1){
+          e.preventDefault();
+          const prev=node.previousSibling||node.nextSibling; node.remove();
+          if(prev){const r=document.createRange(),s=window.getSelection();r.selectNodeContents(prev);r.collapse(false);s.removeAllRanges();s.addRange(r);}
+        }
+      }
+    }
+  });
+
+  ed.addEventListener('input',function(){
+    const sel=window.getSelection(); let node=sel&&sel.anchorNode;
+    while(node&&node.parentElement!==ed) node=node.parentElement;
+    if(!node||!node.classList?.contains('me-line')) return;
+    const txt=node.innerText||'';
+    if(txt.startsWith('- ')||txt.startsWith('• ')){
+      node.dataset.type='bullet'; node.textContent=txt.slice(txt.startsWith('• ')?2:2); _moveCursorEnd(node);
+    } else if(/^\d+\.\s/.test(txt)){
+      node.dataset.type='numbered'; node.textContent=txt.replace(/^\d+\.\s/,''); _moveCursorEnd(node);
+    } else if(txt.startsWith('[ ] ')||txt.startsWith('[] ')){
+      node.dataset.type='check'; node.dataset.done=''; node.className='me-line';
+      node.textContent=txt.replace(/^\[[ ]?\] ?/,''); _moveCursorEnd(node);
+    } else if(txt.startsWith('[x] ')){
+      node.dataset.type='check'; node.dataset.done='1'; node.className='me-line done';
+      node.textContent=txt.replace(/^\[x\] /,''); _moveCursorEnd(node);
+    }
+    _updateMFB(node.dataset.type||'text');
+  });
+
+  ['keyup','click','touchend'].forEach(ev=>ed.addEventListener(ev,function(){
+    const sel=window.getSelection(); let node=sel&&sel.anchorNode;
+    while(node&&node.parentElement!==ed) node=node.parentElement;
+    if(node&&node.classList?.contains('me-line')) _updateMFB(node.dataset.type||'text');
+  }));
+}
+
+/* ── memo display helpers ── */
+function _memoBadge(m){
+  if(m.lines&&m.lines.length){
+    const checks=m.lines.filter(l=>l.type==='check');
+    if(checks.length){const done=checks.filter(l=>l.done).length;return `<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${done}/${checks.length}</span>`;}
+    const items=m.lines.filter(l=>l.text&&l.type!=='gap');
+    if(items.length>1)return `<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${items.length} 項</span>`;
+    return '';
+  }
+  const fmt=m.format||'text';
+  if(fmt==='checklist'&&m.items&&m.items.length){const done=m.items.filter(i=>i.d).length;return `<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${done}/${m.items.length}</span>`;}
+  if(fmt==='bullets'&&m.text){const cnt=m.text.split('\n').filter(Boolean).length;if(cnt>1)return `<span style="font-size:11px;background:#f1f5f9;color:var(--text-muted);padding:1px 7px;border-radius:999px;margin-left:6px;font-weight:400">${cnt} 項</span>`;}
+  return '';
+}
+function renderMemoContent(m){
+  if(m.lines&&m.lines.length){
+    let h='';let numCnt=0;
+    m.lines.forEach((l,i)=>{
+      const t=l.type||'text';
+      if(t==='gap'||!l.text){h+=`<div style="height:1.3em"></div>`;return;}
+      if(t==='text')h+=`<div style="font-size:13px;color:var(--text-secondary);line-height:1.65;word-break:break-word">${esc(l.text)}</div>`;
+      else if(t==='bullet')h+=`<div style="font-size:13px;color:var(--text-secondary);line-height:1.65;display:flex;gap:6px"><span style="flex-shrink:0">•</span><span style="word-break:break-word">${esc(l.text)}</span></div>`;
+      else if(t==='numbered'){numCnt++;h+=`<div style="font-size:13px;color:var(--text-secondary);line-height:1.65;display:flex;gap:4px"><span style="flex-shrink:0;color:var(--text-muted)">${numCnt}.</span><span style="word-break:break-word">${esc(l.text)}</span></div>`;}
+      else if(t==='check')h+=`<span style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span onclick="event.stopPropagation();toggleCheckLine('${m._id}',${i})" style="width:16px;height:16px;border:2px solid ${l.done?'var(--success)':'#cbd5e1'};border-radius:4px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;background:${l.done?'var(--success)':'#fff'};flex-shrink:0">${l.done?'<span style="color:#fff;font-size:10px">✓</span>':''}</span><span style="${l.done?'text-decoration:line-through;color:var(--text-muted)':''}font-size:13px;word-break:break-word">${esc(l.text)}</span></span>`;
+    });
+    return h;
+  }
+  const fmt=m.format||'text';
+  if(fmt==='checklist')return renderChecklistItems(m);
+  if(fmt==='bullets')return `<div style="font-size:13px;color:var(--text-secondary);line-height:1.9">${(m.text||'').split('\n').filter(Boolean).map(l=>'• '+esc(l)).join('<br>')}</div>`;
+  return `<div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.65">${esc(m.text||'').replace(/\n/g,'<br>')}</div>`;
+}
+function toggleCheckLine(memoId,idx){
+  const m=DATA.memos&&DATA.memos[ACTIVE]&&DATA.memos[ACTIVE][memoId]; if(!m||!m.lines)return;
+  m.lines[idx].done=!m.lines[idx].done;
+  fbUpdate('memos/'+ACTIVE+'/'+memoId,{lines:m.lines,updatedBy:ME,updatedAt:Date.now()});
+}
+
 function editMemo(id,sec){
   const m=(id&&DATA.memos&&DATA.memos[ACTIVE]&&DATA.memos[ACTIVE][id])||{};
-  sec=m.section||sec||'need'; const fmt=m.format||'text';
-  const curText=fmt==='checklist'&&m.items?m.items.map(it=>it.t).join('\n'):(m.text||'');
+  sec=m.section||sec||'need';
+  const initLines=m.lines&&m.lines.length?m.lines:_memoOldToLines(m);
   modal(`<div class="modal-title">${id?'編輯':'新增'}備忘</div>
     <label class="fld">標題（選填，填了才會顯示標題列與收合功能）</label>
     <input class="tag-input" id="m-title" placeholder="例：明洞採買清單" value="${esc(m.title||'')}">
     <label class="fld">分類</label>
     <div class="seg" id="m-sec">${Object.keys(SECT).map(k=>`<button data-v="${k}" class="${sec===k?'on':''}" onclick="segPick('m-sec','${k}')">${fi(SECT[k][1],12)} ${getSectLabel(k)}</button>`).join('')}</div>
-    <label class="fld">顯示格式</label>
-    <div class="seg" id="m-fmt">
-      <button data-v="text" class="${fmt==='text'?'on':''}" onclick="segPick('m-fmt','text')">${fi('type',12)} 文字</button>
-      <button data-v="bullets" class="${fmt==='bullets'?'on':''}" onclick="segPick('m-fmt','bullets')">${fi('list',12)} 條列</button>
-      <button data-v="checklist" class="${fmt==='checklist'?'on':''}" onclick="segPick('m-fmt','checklist')">${fi('check-square',12)} 清單</button>
+    <label class="fld">內容</label>
+    <div class="memo-fmt-bar">
+      <button class="mfb" id="mfb-text" onclick="memoFmt('text')">${fi('align-left',12)} 文字</button>
+      <button class="mfb" id="mfb-bullet" onclick="memoFmt('bullet')">${fi('list',12)} 條列</button>
+      <button class="mfb" id="mfb-numbered" onclick="memoFmt('numbered')">${fi('list-numbers',12)} 編號</button>
+      <button class="mfb" id="mfb-check" onclick="memoFmt('check')">${fi('checkbox',12)} 清單</button>
     </div>
-    <label class="fld">內容<span id="fmt-hint" style="font-weight:400;color:var(--text-muted);margin-left:4px">${fmt==='text'?'':' （每行一項）'}</span></label>
-    <textarea class="tag-input" id="m-text" placeholder="${fmt==='checklist'?'每行一個項目…':'例：護照、行動電源…'}" style="min-height:90px">${esc(curText)}</textarea>
+    <div class="memo-editor" id="m-editor" contenteditable="true" spellcheck="false"></div>
+    <p style="font-size:11px;color:var(--text-muted);margin:4px 2px 8px;line-height:1.5">游標在哪行 → 點上方按鈕切換格式；或直接打 <code>- </code> / <code>1. </code> / <code>[ ] </code> 自動辨識</p>
     <label class="fld">連結（選填，可新增多個）</label>
     <div id="m-links-list">${renderMemoLinkRows(m)}</div>
     <button onclick="addMemoLinkRow()" class="btn ghost" style="width:100%;margin-top:4px;font-size:12px;padding:7px 12px">${fi('plus',12)} 新增連結</button>
@@ -2134,26 +2292,24 @@ function editMemo(id,sec){
     ${id&&m.updatedBy?`<div class="edit-info" style="margin-top:8px">${fi('edit-2',9)} ${esc(m.updatedBy)} · ${fmtTs(m.updatedAt)}</div>`:''}
     <div class="modal-acts">${id?`<button class="btn danger" onclick="closeModal();deleteMemo('${id}',${JSON.stringify(m.title||m.text||'此備忘')})">刪除</button>`:''}
     <button class="btn" style="flex:1" onclick="saveMemo('${id||''}')">儲存</button></div>`);
+  _initMemoEditor(initLines);
 }
 function saveMemo(id){
-  const text=$('m-text').value.trim();
+  const lines=getMemoEditorLines();
+  const hasContent=lines.some(l=>l.text&&l.text.trim());
   const linkRows=document.querySelectorAll('#m-links-list .memo-link-row');
   const links=[];linkRows.forEach(row=>{const u=row.querySelector('.memo-lnk-url').value.trim();if(u)links.push({name:row.querySelector('.memo-lnk-name').value.trim(),url:u});});
   const url=links.length?links[0].url:'';
-  if(!text&&!links.length){toast('請輸入內容');return;}
+  if(!hasContent&&!links.length){toast('請輸入內容');return;}
   autoSnapshot(id?'編輯備忘':'新增備忘');
   const section=_seg['m-sec']||(document.querySelector('#m-sec button.on')?.dataset.v||'need');
-  const format=_seg['m-fmt']||(document.querySelector('#m-fmt button.on')?.dataset.v||'text');
   const titleVal=($('m-title')&&$('m-title').value.trim())||'';
-  const obj={section,title:titleVal,text:text||'',url,links,by:ME,format,dueDate:$('m-due').value,updatedBy:ME,updatedAt:Date.now()};
-  if(format==='checklist'){
-    const existing=(id&&DATA.memos&&DATA.memos[ACTIVE]&&DATA.memos[ACTIVE][id]&&DATA.memos[ACTIVE][id].items)||[];
-    const newLines=text.split('\n').filter(Boolean);
-    obj.items=newLines.map(t=>{const old=existing.find(e=>e.t===t);return old||{t,d:false};});
-  }
+  // Also derive plain text for export/search compatibility
+  const plainText=lines.filter(l=>l.text).map(l=>l.text).join('\n');
+  const obj={section,title:titleVal,text:plainText,url,links,by:ME,lines,dueDate:$('m-due').value,updatedBy:ME,updatedAt:Date.now()};
   if(!id){ const cur=Object.keys(DATA.memos&&DATA.memos[ACTIVE]||{}).filter(k=>DATA.memos[ACTIVE][k].section===section).length; obj.order=cur; obj.done=false; obj.createdAt=Date.now(); fbSet('memos/'+ACTIVE+'/'+uid(),obj); }
   else fbUpdate('memos/'+ACTIVE+'/'+id,obj);
-  logChange(id?'編輯備忘':'新增備忘',(titleVal||text||url).slice(0,30));
+  logChange(id?'編輯備忘':'新增備忘',(titleVal||plainText||url).slice(0,30));
   _seg={}; closeModal(); toast('已儲存');
 }
 
