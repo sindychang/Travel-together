@@ -729,7 +729,11 @@ function setupSwipe(){
       if(dx<-40){
         document.querySelectorAll('.item-content.swiped').forEach(o=>{ if(o!==el) o.classList.remove('swiped'); });
         el.classList.add('swiped');
-      } else if(dx>20){ el.classList.remove('swiped'); }
+        el.addEventListener('click',ev=>{ev.stopPropagation();ev.preventDefault();},{once:true,capture:true});
+      } else if(dx>20){
+        el.classList.remove('swiped');
+        el.addEventListener('click',ev=>{ev.stopPropagation();ev.preventDefault();},{once:true,capture:true});
+      }
     },{passive:true});
     // ── Mouse（電腦拖曳）──
     let mStartX,mDragging=false;
@@ -745,11 +749,13 @@ function setupSwipe(){
       if(!mDragging){ el.style.cursor=''; return; }
       el.style.cursor='';
       const dx=e.clientX-mStartX;
+      const acted=Math.abs(dx)>20;
       if(dx<-40){
         document.querySelectorAll('.item-content.swiped').forEach(o=>{ if(o!==el) o.classList.remove('swiped'); });
         el.classList.add('swiped');
       } else if(dx>20){ el.classList.remove('swiped'); }
       mDragging=false;
+      if(acted) el.addEventListener('click',ev=>{ev.stopPropagation();ev.preventDefault();},{once:true,capture:true});
     });
     el.addEventListener('mouseleave',()=>{ el.style.cursor=''; mDragging=false; });
   });
