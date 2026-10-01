@@ -2834,7 +2834,7 @@ function sbRenderRecords(){
         <div style="text-align:right;flex-shrink:0"><div style="font-size:14px;font-weight:700">${esc(ecur)}${(exp.amount||0).toLocaleString()}</div>${!isS?`<div style="font-size:11px;color:var(--text-muted);margin-top:1px">${esc(exp.payer||'')} 付款</div>`:''}</div>
       </div>`;
     }).join('');
-    return `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:10px 2px 4px">${esc(date)}</div><div class="card" style="padding:0 12px">${rows}</div>`;
+    return `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:10px 2px 4px">${esc(date)}</div><div class="card" style="padding:0 12px;background:#fff">${rows}</div>`;
   }).join('');
   return h;
 }
