@@ -305,7 +305,6 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
     </div>
     <div class="header-meta">
       <div class="sync-dot" id="sync-dot"></div>
-      <div class="header-stats" id="header-stats">讀取中…</div>
     </div>
     <div class="header-cur-rate">
       <select class="cur-header-sel" id="global-cur" onchange="setGlobalCurrency(this.value)">
@@ -394,7 +393,7 @@ textarea.inp{min-height:70px;resize:vertical;line-height:1.55;}
 </div>
 
 <!-- Modal -->
-<div class="modal-bg" id="modal" onclick="onBg(event)">
+<div class="modal-bg" id="modal">
   <div class="modal-sheet" id="modal-inner"></div>
 </div>
 
@@ -549,9 +548,6 @@ function setGlobalCurrency(c){
 function renderAll(){
   updateFilterUI();
   renderStores();
-  let total=0,done=0;
-  DATA.stores.forEach(s=>s.items.forEach(it=>{total++;if(it.done)done++;}));
-  document.getElementById('header-stats').textContent=total?`${done}/${total} 已買`:'0 件';
   const gcs=document.getElementById('global-cur');
   if(gcs) gcs.value=DATA.currency||'KRW';
   const rv=document.getElementById('rate-val');
@@ -658,9 +654,8 @@ function renderItem(it,si,ii,faded=false){
     r2.push(`<span class="item-price">${ps}</span>`);
   } else if(it.price) r2.push(`<span class="item-price">${eh(it.price)}</span>`);
 
-  // 第三排：誰的 / 連結 / 備註（編輯改左滑操作）
+  // 第三排：連結 / 備註（誰的已移到第一排品名下方）
   const r3=[];
-  if(it.who) r3.push(`<span class="right-who">👤 ${eh(it.who)}</span>`);
   if(it.url) r3.push(`<a class="item-link-icon" href="${eh(it.url)}" target="_blank" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> 連結</a>`);
   if(it.note) r3.push(`<span class="sum-note">📝 ${eh(it.note)}</span>`);
 
@@ -680,7 +675,9 @@ function renderItem(it,si,ii,faded=false){
         <div class="check-btn${it.done?' done':''}" onclick="event.stopPropagation();toggleItem(${si},${ii})">${svg.check}</div>
         <div class="item-thumb-wrap">${thumbWrap}</div>
         <div class="item-r1-body">
-          <div class="item-name-cell${it.done?' done':''}">${eh(it.name)||'（未命名品項）'}</div>
+          <div class="item-name-cell${it.done?' done':''}">
+            ${eh(it.name)||'（未命名品項）'}${it.who?` <span style="display:inline-block;font-size:10px;color:#8a7a90;background:#f0edf4;border-radius:999px;padding:0 7px;line-height:1.8;font-weight:600;vertical-align:middle">${eh(it.who)}</span>`:''}
+          </div>
         </div>
         ${qtyNum>0?`<div class="qty-stepper" onclick="event.stopPropagation()">
           <button class="qty-btn" onclick="changeQty(${si},${ii},-1)">−</button>
