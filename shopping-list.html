@@ -139,7 +139,7 @@ body{background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px;m
 .store-menu-btn:hover{background:rgba(0,0,0,.16);}
 .hc-orange .store-menu-btn{color:#5a2e1a;}
 .store-menu-btn svg{width:14px;height:14px;fill:currentColor;}
-.store-menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);z-index:50;min-width:120px;overflow:hidden;display:none;}
+.store-menu{position:fixed;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);z-index:500;min-width:120px;overflow:hidden;display:none;}
 .store-menu.open{display:block;}
 .store-menu-item{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);transition:background .12s;border:none;background:none;width:100%;text-align:left;font-family:"Noto Sans TC",sans-serif;}
 .store-menu-item:hover{background:var(--primary-light);}
@@ -702,7 +702,16 @@ function getWhoSuggestions(){
   return [...set].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
 }
 function delItemSwipe(si,ii){ if(!confirm(`確定刪除「${DATA.stores[si].items[ii].name||'此品項'}」？`)) return; DATA.stores[si].items.splice(ii,1); fbSet('stores',DATA.stores); }
-function toggleStoreMenu(si,e){ e.stopPropagation(); closeStoreMenu(); const m=document.getElementById('smenu-'+si); if(m){ m.classList.add('open'); } }
+function toggleStoreMenu(si,e){
+  e.stopPropagation(); closeStoreMenu();
+  const m=document.getElementById('smenu-'+si);
+  if(m){
+    const rect=e.currentTarget.getBoundingClientRect();
+    m.style.top=(rect.bottom+4)+'px';
+    m.style.right=(window.innerWidth-rect.right)+'px';
+    m.classList.add('open');
+  }
+}
 function closeStoreMenu(){ document.querySelectorAll('.store-menu.open').forEach(m=>m.classList.remove('open')); }
 document.addEventListener('click',e=>{ if(!e.target.closest('.store-btns')) closeStoreMenu(); });
 function closeAllSwipe(){ document.querySelectorAll('.item-content.swiped').forEach(el=>el.classList.remove('swiped')); }
@@ -1031,36 +1040,77 @@ function importJSON(input){
 // ── Export PDF ──
 function exportPDF(){
   const date=new Date().toLocaleDateString('zh-Hant');
-  const rateLine=`1${CUR_SYM[DATA.currency]||DATA.currency}＝NT$${DATA.customRate||RATES[DATA.currency]||''}`;
+  const cur=DATA.currency||'KRW';
+  const rateLine=cur!=='TWD'?`1 ${cur} ＝ NT$${DATA.customRate||RATES[cur]||''}`:'' ;
   let rows='';
   DATA.stores.forEach(s=>{
     if(!s.items.length) return;
-    rows+=`<tr class="store-row"><td colspan="4"><b>${s.name}</b>${s.region?` <span class="tag">${s.region}</span>`:''}${s.category?` <span class="tag">${s.category}</span>`:''}</td></tr>`;
+    const tags=[s.region,s.category].filter(Boolean).map(t=>`<span class="tag">${t}</span>`).join('');
+    rows+=`<tr class="store-row"><td colspan="5"><b>${s.name||'（未命名店家）'}</b>${tags}</td></tr>`;
     s.items.forEach(it=>{
-      const priceStr=it.priceAmt?`${CUR_SYM[it.priceCur]||''}${Number(it.priceAmt).toLocaleString()}`:(it.price||'—');
-      const twdStr=(it.priceAmt&&it.priceCur&&it.priceCur!=='TWD')?`≈ NT$${Math.round(it.priceAmt*(RATES[it.priceCur]||1)).toLocaleString()}`:'';
-      const doneCls=it.done?' class="done"':'';
-      rows+=`<tr><td${doneCls}>${it.done?'✅ ':' '}${it.name||'（未命名）'}</td><td${doneCls}>${it.note||''}</td><td${doneCls}>${priceStr}</td><td${doneCls} style="color:#4d6b76">${twdStr}</td></tr>`;
+      const doneCls=it.done?' class="row-done"':'';
+      const status=it.done?'✅':'☐';
+      // 品名欄：品名 + 型號 + 備註 + 連結
+      let nameCell=`<span class="iname">${it.name||'（未命名）'}</span>`;
+      if(it.spec) nameCell+=`<br><span class="imeta">型號：${it.spec}</span>`;
+      if(it.note) nameCell+=`<br><span class="imeta">備註：${it.note}</span>`;
+      if(it.url) nameCell+=`<br><a class="iurl" href="${it.url}" target="_blank">連結</a>`;
+      // 價格欄
+      let priceCell='—';
+      if(it.priceAmt){
+        const sym=CUR_SYM[it.priceCur]||it.priceCur||'';
+        priceCell=`${sym}${Number(it.priceAmt).toLocaleString()}`;
+        if(it.priceCur&&it.priceCur!=='TWD')
+          priceCell+=`<br><span class="twd">≈ NT$${Math.round(it.priceAmt*getRateToTWD(it.priceCur)).toLocaleString()}</span>`;
+      } else if(it.price){ priceCell=it.price; }
+      const whoCell=it.who?`<span class="who">${it.who}</span>`:'';
+      const qtyCell=parseInt(it.qty)||'';
+      rows+=`<tr${doneCls}>
+        <td class="c-status">${status}</td>
+        <td class="c-name">${nameCell}</td>
+        <td class="c-who">${whoCell}</td>
+        <td class="c-qty">${qtyCell}</td>
+        <td class="c-price">${priceCell}</td>
+      </tr>`;
     });
   });
   const html=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>購物清單</title>
   <style>
     *{box-sizing:border-box;font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
-    body{margin:24px 28px;color:#1e2a30;font-size:13px;line-height:1.6;}
-    h1{font-size:20px;font-weight:900;color:#3d6e7d;margin:0 0 3px;}
-    .sub{font-size:11px;color:#4d6b76;margin-bottom:18px;}
+    body{margin:24px 30px;color:#1e2a30;font-size:13px;line-height:1.6;}
+    h1{font-size:19px;font-weight:900;color:#3d6e7d;margin:0 0 2px;}
+    .sub{font-size:11px;color:#4d6b76;margin-bottom:20px;}
     table{width:100%;border-collapse:collapse;}
-    th{text-align:left;font-size:11px;color:#4d6b76;padding:5px 8px;border-bottom:2px solid #bed4dc;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
-    td{padding:6px 8px;border-bottom:1px solid #e2eef2;vertical-align:top;}
-    .store-row td{background:#d8edf2;font-size:14px;font-weight:900;color:#3d6e7d;padding:7px 8px;border-bottom:none;}
-    .done{text-decoration:line-through;color:#4d6b76;}
-    .tag{font-size:10px;background:#c4d8e4;color:#4d6b76;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:500;}
-    @media print{body{margin:12px 16px;}h1{font-size:16px;}}
+    thead tr{border-bottom:2px solid #bed4dc;}
+    th{text-align:left;font-size:10px;color:#5a8090;padding:5px 8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;}
+    th.r{text-align:right;}
+    td{padding:7px 8px;border-bottom:1px solid #eaf2f5;vertical-align:top;}
+    .store-row td{background:#deedf3;font-size:13px;font-weight:900;color:#3d6e7d;padding:8px 10px;border-top:10px solid white;border-bottom:none;}
+    .store-row:first-child td{border-top:none;}
+    .row-done td{opacity:.5;}
+    .row-done .iname{text-decoration:line-through;}
+    .c-status{width:22px;text-align:center;font-size:13px;padding-right:2px;color:#888;}
+    .c-name{min-width:140px;}
+    .c-who{width:72px;white-space:nowrap;}
+    .c-qty{width:36px;text-align:center;color:#4d6b76;font-weight:700;}
+    .c-price{width:120px;text-align:right;white-space:nowrap;}
+    .iname{font-weight:700;font-size:13px;}
+    .imeta{font-size:11px;color:#5a7880;display:block;margin-top:0;line-height:1.4;}
+    .iurl{font-size:11px;color:#5a8fa0;text-decoration:none;display:block;margin-top:0;line-height:1.4;}
+    .twd{font-size:11px;color:#5a7880;display:block;}
+    .who{display:inline-block;font-size:10px;color:#7a6888;background:#f0edf4;border-radius:999px;padding:1px 8px;font-weight:600;}
+    .tag{font-size:10px;background:#bdd8e2;color:#3d6070;border-radius:4px;padding:1px 6px;margin-left:5px;font-weight:500;}
+    @media print{
+      body{margin:10px 16px;}
+      .store-row td{border-top:8px solid white;}
+    }
   </style></head><body>
   <h1>🛍 購物清單</h1>
-  <div class="sub">匯出時間：${date}　匯率：${rateLine}</div>
+  <div class="sub">匯出時間：${date}${rateLine?' 　匯率：'+rateLine:''}</div>
   <table>
-    <thead><tr><th>品項</th><th>備註</th><th>原價</th><th>台幣換算</th></tr></thead>
+    <thead><tr>
+      <th></th><th>品項</th><th>誰的</th><th style="text-align:center">數量</th><th class="r">價格</th>
+    </tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <script>window.onload=()=>{window.print();}<\/script>
