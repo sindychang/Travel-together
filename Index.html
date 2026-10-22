@@ -2659,6 +2659,7 @@ function sbMapCat(s){ return SBCAT_MAP[(s||'').trim()]||'other'; }
 
 let sbSplitMode='equal', sbEditingId=null;
 let sbSearchQ=''; let sbSearchOpen=false;
+let sbCatFilter=''; // 從統計頁點類別帶過來的紀錄篩選
 let sbPendingRows=[];
 let _sbShowSettled=false;
 
@@ -2684,17 +2685,15 @@ function renderSplitbill(){
       <div class="sec-title" style="margin:0">${fi('dollar-sign',15)} 分帳</div>
       <div style="font-size:11px;color:var(--text-muted)">預設幣別：${esc(sbCurrency())}</div>
     </div>`;
-  h+=`<div class="tabs">
-    <button class="tab-btn ${SBTAB==='home'?'on':''}" onclick="sbGoTab('home')">${fi('home',13)} 總覽</button>
-    <button class="tab-btn ${SBTAB==='records'?'on':''}" onclick="sbGoTab('records')">${fi('list',13)} 紀錄</button>
-    <button class="tab-btn ${SBTAB==='settings'?'on':''}" onclick="sbGoTab('settings')">${fi('settings',13)} 設定</button>
-  </div>`;
+  // 分帳模式的四個分頁：沿用行程模式的底部導覽列樣式（.nav / .nav-item），固定在畫面底部
+  h+=`<div class="nav" id="sb-nav">${[['home','home','總覽'],['records','list','紀錄'],['stats','pie-chart','統計'],['settings','settings','設定']].map(([t,icon,lab])=>`<button class="nav-item${SBTAB===t?' active':''}" data-sb="${t}" onclick="sbGoTab('${t}')"><span class="ico">${fi(icon,22)}</span><span class="lab">${lab}</span></button>`).join('')}</div>`;
   if(!members.length){
     h+=`<div class="empty"><span class="big">👥</span>此旅程還沒有成員<br>請先到「工具」頁新增旅程成員</div>`;
     $('splitbill-wrap').innerHTML=h; return;
   }
   if(SBTAB==='home') h+=sbRenderHome();
   else if(SBTAB==='records') h+=sbRenderRecords();
+  else if(SBTAB==='stats') h+=sbRenderStats();
   else if(SBTAB==='settings') h+=sbRenderSettings();
   $('splitbill-wrap').innerHTML=h;
   if(SBTAB==='records'&&sbSearchQ){ const inp=$('sb-search-q'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); } }
@@ -2803,13 +2802,17 @@ function sbRenderHome(){
 function sbRenderRecords(){
   let exps=sbExpensesArr();
   if(sbSearchQ){ const q=sbSearchQ.toLowerCase(); exps=exps.filter(e=>(e.name||'').toLowerCase().includes(q)||(e.payer||'').toLowerCase().includes(q)); }
+  if(sbCatFilter) exps=exps.filter(e=>(SBCAT[e.cat]?e.cat:'other')===sbCatFilter);
   exps.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const _sOpen=sbSearchOpen||!!sbSearchQ;
-  let h=`<div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:${_sOpen?'6px':'2px'}">
+  const _cf=sbCatFilter&&SBCAT[sbCatFilter];
+  let h=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:${_sOpen?'6px':'2px'}">
+    ${_cf?`<button onclick="sbCatFilter='';renderSplitbill()" style="display:flex;align-items:center;gap:4px;background:${_cf.bg};border:1px solid ${_cf.color};border-radius:20px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700;color:${_cf.color};font-family:inherit">${_cf.icon} ${_cf.lbl} ✕</button>`:''}
     <button onclick="sbSearchOpen=!sbSearchOpen;if(!sbSearchOpen){sbSearchQ=''}renderSplitbill()" style="display:flex;align-items:center;gap:4px;background:${_sOpen?'var(--primary-light)':'transparent'};border:1px solid ${_sOpen?'var(--primary)':'var(--border-light)'};border-radius:20px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700;color:${_sOpen?'var(--primary)':'var(--text-muted)'};font-family:inherit">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       ${_sOpen?'收合搜尋':'搜尋'}
     </button>
+    <button onclick="sbExportExcel()" style="display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--border-light);border-radius:20px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);font-family:inherit;margin-left:auto">${fi('download',12)} 匯出 Excel</button>
   </div>
   ${_sOpen?`<div style="margin-bottom:10px"><input id="sb-search-q" class="tag-input" placeholder="搜尋品項、付款人…" value="${esc(sbSearchQ)}" oninput="if(event.isComposing)return;sbSearchQ=this.value;renderSplitbill()" style="width:100%"></div>`:''}
   `;
@@ -2820,7 +2823,7 @@ function sbRenderRecords(){
       ${disc.map(e=>{const diff=(e.splitDetails||[]).reduce((s,d)=>s+(d.amount||0),0)-e.amount;return `<div style="font-size:12px;color:#92400e;margin-bottom:2px;cursor:pointer" onclick="sbOpenAddModal('${e._id}')">• ${esc(e.date||'')} ${esc(e.name)}（差 ${diff>0?'+':''}${esc(sbExpCur(e))}${diff.toFixed(0)}）</div>`;}).join('')}
     </div>`;
   }
-  if(!exps.length){ h+=`<div class="empty"><span class="big">🧾</span>${sbSearchQ?'找不到符合的記錄':'尚無支出記錄<br>點右下角 ＋ 新增第一筆'}</div>`; return h; }
+  if(!exps.length){ h+=`<div class="empty"><span class="big">🧾</span>${(sbSearchQ||sbCatFilter)?'找不到符合的記錄':'尚無支出記錄<br>點右下角 ＋ 新增第一筆'}</div>`; return h; }
   const groups={};
   exps.forEach(e=>{ (groups[e.date||'未分類']=groups[e.date||'未分類']||[]).push(e); });
   h+=Object.keys(groups).map(date=>{
@@ -2837,6 +2840,166 @@ function sbRenderRecords(){
     return `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:10px 2px 4px">${esc(date)}</div><div class="card" style="padding:0 12px;background:#fff">${rows}</div>`;
   }).join('');
   return h;
+}
+
+/* ── 統計（各類別／各成員花費；轉帳不計入；不同幣別分開統計，因為沒有匯率無法合計） ── */
+function sbStatsByCur(){
+  const exps=sbExpensesArr().filter(e=>e.type!=='settlement');
+  const out={};
+  exps.forEach(e=>{
+    const c=sbExpCur(e);
+    const g=out[c]=out[c]||{cur:c,total:0,count:0,cats:{},paid:{},owed:{}};
+    const amt=e.amount||0;
+    g.total+=amt; g.count++;
+    const ck=SBCAT[e.cat]?e.cat:'other';
+    g.cats[ck]=(g.cats[ck]||0)+amt;
+    if(e.paidDetails&&e.paidDetails.length) e.paidDetails.forEach(d=>{g.paid[d.name]=(g.paid[d.name]||0)+(d.amount||0);});
+    else if(e.payer) g.paid[e.payer]=(g.paid[e.payer]||0)+amt;
+    (e.splitDetails||[]).forEach(d=>{g.owed[d.name]=(g.owed[d.name]||0)+(d.amount||0);});
+  });
+  return Object.values(out);
+}
+function sbRenderStats(){
+  const groups=sbStatsByCur();
+  if(!groups.length) return `<div class="empty"><span class="big">📊</span>尚無支出記錄可統計</div>`;
+  const multiCur=groups.length>1;
+  const money=(c,v)=>esc(c)+' '+Math.round(v).toLocaleString();
+  let h=groups.map((g,gi)=>{
+    const tag=multiCur?`<div style="display:flex;align-items:center;gap:8px;margin:${gi?'18px':'2px'} 0 4px"><div style="flex:1;height:1.5px;background:#c09060;opacity:.3"></div><span style="font-size:11px;font-weight:800;color:#7a4f2e;letter-spacing:.08em;background:#ede0d0;padding:2px 10px;border-radius:999px">${esc(g.cur)}</span><div style="flex:1;height:1.5px;background:#c09060;opacity:.3"></div></div>`:'';
+    // 類別分布：左邊甜甜圈圖（中間顯示總支出），右邊各類別金額與占比；點類別名稱跳到紀錄頁篩選
+    const cats=Object.keys(g.cats).sort((a,b)=>g.cats[b]-g.cats[a]);
+    const R=42, C=2*Math.PI*R; let off=0;
+    const arcs=cats.map(k=>{
+      const frac=g.total?g.cats[k]/g.total:0, len=frac*C;
+      const seg=`<circle cx="60" cy="60" r="${R}" fill="none" stroke="${SBCAT[k].color}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}"/>`;
+      off+=len; return seg;
+    }).join('');
+    const donut=`<div style="position:relative;width:120px;height:120px;flex-shrink:0">
+      <svg viewBox="0 0 120 120" width="120" height="120" style="transform:rotate(-90deg)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--border-light)" stroke-width="16"/>${arcs}</svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+        <div style="font-size:12px;font-weight:900;line-height:1.2">${esc(g.cur)}<br>${Math.round(g.total).toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">總支出</div>
+      </div>
+    </div>`;
+    const legend=cats.map(k=>{
+      const c=SBCAT[k], v=g.cats[k], pct=g.total?v/g.total*100:0;
+      return `<div onclick="sbStatsGoCat('${k}')" style="display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--border-light);cursor:pointer">
+        <span style="width:9px;height:9px;border-radius:50%;background:${c.color};flex-shrink:0"></span>
+        <span style="flex:1;min-width:0;font-size:13px;font-weight:700;white-space:nowrap">${c.lbl}<span style="color:var(--text-muted);font-weight:400;margin-left:2px">›</span></span>
+        <span style="font-size:11px;color:var(--text-muted)">${Math.round(pct)}%</span>
+        <span style="font-size:13px;font-weight:800;text-align:right;white-space:nowrap">${money(g.cur,v)}</span>
+      </div>`;
+    }).join('');
+    // 成員支出：長條圖，右側顯示金額（金額＝各自應分攤，也就是實際花費）
+    const names=new Set(sbMembers()); Object.keys(g.owed).forEach(n=>names.add(n));
+    const list=[...names].filter(n=>(g.owed[n]||0)>0.01).sort((a,b)=>(g.owed[b]||0)-(g.owed[a]||0));
+    const maxOwed=Math.max(1,...list.map(n=>g.owed[n]||0));
+    const memRows=list.map(n=>{
+      const o=g.owed[n]||0;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-light)">
+        ${sbAvEl(n,34)}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline"><span style="font-size:13px;font-weight:700">${esc(n)}</span><span style="margin-left:auto;font-size:13px;font-weight:800;color:var(--primary)">${money(g.cur,o)}</span></div>
+          <div style="height:7px;background:var(--border-light);border-radius:999px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${(o/maxOwed*100).toFixed(1)}%;background:var(--primary);border-radius:999px"></div></div>
+        </div>
+      </div>`;
+    }).join('');
+    return tag+`<div class="sec-title">${fi('pie-chart',13)} 類別分布</div>
+      <div class="card" style="padding:12px 14px;background:#fff;display:flex;align-items:center;gap:14px">
+        ${donut}<div style="flex:1;min-width:0">${legend}</div>
+      </div>
+      <div class="sec-title">${fi('users',13)} 成員支出</div>
+      <div class="card" style="padding:4px 14px;background:#fff">${memRows||'<div class="empty" style="padding:16px 10px">尚無資料</div>'}</div>`;
+  }).join('');
+  h+=`<p style="font-size:11px;color:var(--text-muted);margin:10px 2px 0;line-height:1.6">成員金額為各自應分攤的花費；轉帳（已完成的付款）不計入統計。點類別可查看該類別的紀錄。</p>`;
+  return h;
+}
+/* 從統計頁點類別 → 切到紀錄頁並只顯示該類別 */
+function sbStatsGoCat(k){ sbCatFilter=k; sbSearchQ=''; sbSearchOpen=false; sbGoTab('records'); window.scrollTo(0,0); }
+
+/* ── 匯出分帳紀錄 Excel（有格式）──
+   app 內建的 SheetJS 社群版不支援儲存格樣式，按匯出時才另外載入 xlsx-js-style，
+   載入後立刻把全域 XLSX 還原成原本的版本，匯入功能完全不受影響。 */
+let _sbStyledXLSX=null;
+function sbLoadStyledXLSX(){
+  if(_sbStyledXLSX) return Promise.resolve(_sbStyledXLSX);
+  return new Promise(resolve=>{
+    const orig=window.XLSX;
+    const sc=document.createElement('script');
+    sc.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+    sc.onload=()=>{ _sbStyledXLSX=window.XLSX; window.XLSX=orig; resolve(_sbStyledXLSX); };
+    sc.onerror=()=>{ window.XLSX=orig; resolve(null); };
+    document.head.appendChild(sc);
+  });
+}
+function sbBuildExportSheet(X){
+  const exps=sbExpensesArr().filter(e=>e.type!=='settlement')
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||0)-(b.createdAt||0));
+  const members=sbMembers().slice();
+  exps.forEach(e=>(e.splitDetails||[]).forEach(d=>{ if(d.name&&!members.includes(d.name)) members.push(d.name); }));
+  const r2=v=>Math.round((v||0)*100)/100;
+  const header=['日期','品項','類別','幣別','金額','誰付款',...members.map(m=>'分攤-'+m),'備註'];
+  const NC=header.length, AMT=4, SPL0=6, NOTE=NC-1;
+  const rows=exps.map(e=>{
+    const share={}; (e.splitDetails||[]).forEach(d=>{ share[d.name]=(share[d.name]||0)+(d.amount||0); });
+    const payer=(e.paidDetails&&e.paidDetails.length>1)
+      ? e.paidDetails.map(d=>d.name+' '+Math.round(d.amount||0).toLocaleString()).join('、')
+      : ((e.paidDetails&&e.paidDetails[0]&&e.paidDetails[0].name)||e.payer||'');
+    return [e.date||'', e.name||'', (SBCAT[e.cat]||SBCAT.other).lbl, sbExpCur(e), r2(e.amount), payer,
+      ...members.map(m=>share[m]?r2(share[m]):''), e.notes||''];
+  });
+  const ws=X.utils.aoa_to_sheet([header,...rows]);
+  const last=rows.length+1;                    // 最後一筆資料所在的列（1-based）
+  const col=i=>X.utils.encode_col(i);
+  // 合計：每種幣別一列，用 SUMIF 公式，之後在 Excel 改資料也會自動更新
+  const curs=[...new Set(rows.map(r=>r[3]))];
+  const totalStart=last+1;                     // 空一列（0-based 索引 = last+1）
+  curs.forEach((c,ci)=>{
+    const r=totalStart+ci;
+    const sumOf=i=>rows.filter(x=>x[3]===c).reduce((s,x)=>s+(Number(x[i])||0),0);
+    const put=(i,cell)=>{ ws[X.utils.encode_cell({r,c:i})]=cell; };
+    put(0,{t:'s',v:'合計'}); put(3,{t:'s',v:c});
+    [AMT,...members.map((_,mi)=>SPL0+mi)].forEach(i=>{
+      put(i,{t:'n',v:r2(sumOf(i)),f:`SUMIF($D$2:$D$${last},"${c}",${col(i)}2:${col(i)}${last})`});
+    });
+  });
+  const lastRow=totalStart+curs.length-1;
+  ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(lastRow,last-1),c:NC-1}});
+  // 欄寬：依內容長度估算（中文字算兩格）
+  const w=v=>String(v==null?'':v).split('').reduce((s,ch)=>s+(ch.charCodeAt(0)>255?2:1),0);
+  ws['!cols']=header.map((hd,i)=>({wch:Math.min(40,Math.max(w(hd),...rows.map(r=>w(typeof r[i]==='number'?r[i].toLocaleString():r[i])))+2)}));
+  ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:last-1,c:NC-1}})};
+  // 樣式（只有 xlsx-js-style 會寫出；一般 SheetJS 會忽略）
+  const border={top:{style:'thin',color:{rgb:'D5D9E0'}},bottom:{style:'thin',color:{rgb:'D5D9E0'}},left:{style:'thin',color:{rgb:'D5D9E0'}},right:{style:'thin',color:{rgb:'D5D9E0'}}};
+  const font={name:'微軟正黑體',sz:11};
+  for(let r=0;r<=lastRow;r++){
+    if(r===last) continue;                     // 資料與合計之間的空白列
+    for(let c=0;c<NC;c++){
+      const ref=X.utils.encode_cell({r,c});
+      const cell=ws[ref]||(ws[ref]={t:'s',v:''});
+      const isNum=c===AMT||(c>=SPL0&&c<NOTE);
+      if(isNum&&cell.t==='n') cell.z='#,##0';
+      if(r===0) cell.s={font:{...font,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'4E8A87'}},alignment:{horizontal:'center',vertical:'center'},border};
+      else if(r>last) cell.s={font:{...font,bold:true},fill:{fgColor:{rgb:'EDE0D0'}},alignment:{horizontal:isNum?'right':'left',vertical:'center'},border,...(isNum?{numFmt:'#,##0'}:{})};
+      else cell.s={font,...(r%2===0?{fill:{fgColor:{rgb:'F6F5FA'}}}:{}),alignment:{horizontal:isNum?'right':(c===0||c===2||c===3?'center':'left'),vertical:'center',wrapText:c===NOTE},border,...(isNum?{numFmt:'#,##0'}:{})};
+    }
+  }
+  ws['!rows']=[{hpt:22}];
+  return ws;
+}
+async function sbExportExcel(){
+  if(!sbExpensesArr().some(e=>e.type!=='settlement')){ toast('尚無支出記錄可匯出'); return; }
+  toast('正在產生 Excel…');
+  const styled=await sbLoadStyledXLSX();
+  const X=styled||XLSX;
+  const ws=sbBuildExportSheet(X);
+  const wb=X.utils.book_new();
+  X.utils.book_append_sheet(wb,ws,'分帳紀錄');
+  const trip=DATA.trips[ACTIVE];
+  const date=new Date().toISOString().slice(0,10);
+  const filename=('分帳紀錄_'+(trip?trip.name:'trip')+'_'+date+'.xlsx').replace(/[\\\/:*?"<>|]/g,'_');
+  X.writeFile(wb,filename);
+  toast(styled?'已匯出 Excel':'已匯出 Excel（樣式套件載入失敗，僅匯出資料）');
 }
 
 /* ── 設定 ── */
