@@ -2657,7 +2657,9 @@ const SBCAT={
 const SBCAT_MAP={'雜貨':'food','外食':'food','餐飲':'food','食物':'food','吃喝':'food','酒水':'food','飲料':'food','娛樂':'fun','票券':'fun','交通':'transport','計程車':'transport','房屋':'housing','住宿':'housing','購物':'shop','帳單':'other','水電':'other','其他':'other'};
 function sbMapCat(s){ return SBCAT_MAP[(s||'').trim()]||'other'; }
 
-let sbSplitMode='equal', sbEditingId=null;
+let sbSplitMode='equal', sbEditingId=null, sbAmtTouched=false;
+// 花費細項：sbItems=[{name,price,qty,among:[成員]}]；sbItemAdj=差額是否按比例分給大家；sbTotalAuto=總金額是否跟著細項合計
+let sbItems=[], sbItemAdj=false, sbTotalAuto=false;
 let sbSearchQ=''; let sbSearchOpen=false;
 let sbCatFilter=''; // 從統計頁點類別帶過來的紀錄篩選
 let sbPendingRows=[];
@@ -2833,7 +2835,7 @@ function sbRenderRecords(){
       const warn=sbHasDiscrepancy(exp)?`<span style="position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:#f59e0b;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center">!</span>`:'';
       return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border-light);cursor:pointer" onclick="sbOpenAddModal('${exp._id}')">
         <div style="width:34px;height:34px;border-radius:9px;background:${c.bg};display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;position:relative">${c.icon}${warn}</div>
-        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;${isS?'color:var(--warm)':''}">${esc(exp.name)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:1px">${c.lbl}${exp.notes?' · '+esc(exp.notes):''}</div></div>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;${isS?'color:var(--warm)':''}">${esc(exp.name)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:1px">${c.lbl}${(exp.items&&exp.items.length)?' · 🧾 '+exp.items.length+' 項細項':''}${exp.notes?' · '+esc(exp.notes):''}</div></div>
         <div style="text-align:right;flex-shrink:0"><div style="font-size:14px;font-weight:700">${esc(ecur)} ${(exp.amount||0).toLocaleString()}</div>${!isS?`<div style="font-size:11px;color:var(--text-muted);margin-top:1px">${esc(exp.payer||'')} 付款</div>`:''}</div>
       </div>`;
     }).join('');
@@ -2932,59 +2934,187 @@ function sbLoadStyledXLSX(){
     document.head.appendChild(sc);
   });
 }
-function sbBuildExportSheet(X){
+// 匯出格式同「分帳紀錄（整理版）」：每天一列日期標題，主筆下方列出細項；另附「統計」工作表（公式只加總主筆）
+const SB_XSHEET='分帳紀錄';
+function sbBuildExport(X){
   const exps=sbExpensesArr().filter(e=>e.type!=='settlement')
     .sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||0)-(b.createdAt||0));
   const members=sbMembers().slice();
-  exps.forEach(e=>(e.splitDetails||[]).forEach(d=>{ if(d.name&&!members.includes(d.name)) members.push(d.name); }));
+  exps.forEach(e=>{ (e.splitDetails||[]).forEach(d=>{ if(d.name&&!members.includes(d.name)) members.push(d.name); }); (e.paidDetails||[]).forEach(d=>{ if(d.name&&!members.includes(d.name)) members.push(d.name); }); });
   const r2=v=>Math.round((v||0)*100)/100;
-  const header=['日期','品項','類別','幣別','金額','誰付款',...members.map(m=>'分攤-'+m),'備註'];
-  const NC=header.length, AMT=4, SPL0=6, NOTE=NC-1;
-  const rows=exps.map(e=>{
-    const share={}; (e.splitDetails||[]).forEach(d=>{ share[d.name]=(share[d.name]||0)+(d.amount||0); });
-    const payer=(e.paidDetails&&e.paidDetails.length>1)
-      ? e.paidDetails.map(d=>d.name+' '+Math.round(d.amount||0).toLocaleString()).join('、')
-      : ((e.paidDetails&&e.paidDetails[0]&&e.paidDetails[0].name)||e.payer||'');
-    return [e.date||'', e.name||'', (SBCAT[e.cat]||SBCAT.other).lbl, sbExpCur(e), r2(e.amount), payer,
-      ...members.map(m=>share[m]?r2(share[m]):''), e.notes||''];
-  });
-  const ws=X.utils.aoa_to_sheet([header,...rows]);
-  const last=rows.length+1;                    // 最後一筆資料所在的列（1-based）
   const col=i=>X.utils.encode_col(i);
-  // 合計：每種幣別一列，用 SUMIF 公式，之後在 Excel 改資料也會自動更新
-  const curs=[...new Set(rows.map(r=>r[3]))];
-  const totalStart=last+1;                     // 空一列（0-based 索引 = last+1）
-  curs.forEach((c,ci)=>{
-    const r=totalStart+ci;
-    const sumOf=i=>rows.filter(x=>x[3]===c).reduce((s,x)=>s+(Number(x[i])||0),0);
-    const put=(i,cell)=>{ ws[X.utils.encode_cell({r,c:i})]=cell; };
-    put(0,{t:'s',v:'合計'}); put(3,{t:'s',v:c});
-    [AMT,...members.map((_,mi)=>SPL0+mi)].forEach(i=>{
-      put(i,{t:'n',v:r2(sumOf(i)),f:`SUMIF($D$2:$D$${last},"${c}",${col(i)}2:${col(i)}${last})`});
-    });
+  const NM=members.length, SPL0=9, CHK=SPL0+NM, NOTE=CHK+1, NC=NOTE+1;
+  const header=['編號','類型','日期','店家／花費','細項品項','類別','幣別','金額','誰付款',...members.map(m=>'分攤-'+m),'細項檢查','備註'];
+  const wk='日一二三四五六';
+  const ws={}; const kinds=[];                 // kinds[r]：每列的樣式種類
+  const put=(r,c,cell)=>{ ws[X.utils.encode_cell({r,c})]=cell; };
+  const S=v=>({t:'s',v:String(v)}), N=v=>({t:'n',v});
+  header.forEach((t,c)=>put(0,c,S(t))); kinds[0]='head';
+  let r=1, no=0, lastDate=null;
+  const mains=[];                              // 統計用：{cur,cat,amount,payer,paid:{},share:{}}
+  exps.forEach(e=>{
+    if(e.date&&e.date!==lastDate){
+      const d=new Date(e.date+'T00:00:00');
+      put(r,0,S(isNaN(d)?e.date:`${d.getMonth()+1}/${d.getDate()}（${wk[d.getDay()]}）`)); kinds[r]='day'; r++; lastDate=e.date;
+    }
+    no++;
+    const cur=sbExpCur(e), cat=(SBCAT[e.cat]||SBCAT.other).lbl;
+    const share={}; (e.splitDetails||[]).forEach(d=>{ share[d.name]=(share[d.name]||0)+(d.amount||0); });
+    const paid={}; if(e.paidDetails&&e.paidDetails.length) e.paidDetails.forEach(d=>{ paid[d.name]=(paid[d.name]||0)+(d.amount||0); }); else paid[e.payer]=(e.amount||0);
+    const multiPay=e.paidDetails&&e.paidDetails.length>1;
+    const payer=multiPay?e.paidDetails.map(d=>d.name+' '+Math.round(d.amount||0).toLocaleString()).join('、'):((e.paidDetails&&e.paidDetails[0]&&e.paidDetails[0].name)||e.payer||'');
+    const mr=r, R=mr+1;                        // R：Excel 列號（1-based）
+    mains.push({cur,cat,amount:e.amount||0,payer,multiPay,paid,share});
+    put(mr,0,S(no)); put(mr,1,S('主筆')); put(mr,2,S(e.date||'')); put(mr,3,S(e.name||'')); put(mr,5,S(cat)); put(mr,6,S(cur));
+    put(mr,7,N(r2(e.amount))); put(mr,8,S(payer));
+    members.forEach((m,mi)=>{ if(share[m]) put(mr,SPL0+mi,N(r2(share[m]))); });
+    const shareSum=Object.values(share).reduce((s,v)=>s+v,0);
+    const splitBad=Math.abs(shareSum-(e.amount||0))>1;
+    const splitRng=`${col(SPL0)}${R}:${col(CHK-1)}${R}`;
+    const items=e.items||[];
+    let notes=e.notes||'';
+    kinds[mr]='main'; r++;
+    if(!items.length){
+      put(mr,CHK,{t:'s',v:splitBad?'不符：分攤合計≠金額':'',f:`IF(ABS(SUM(${splitRng})-H${R})>1,"不符：分攤合計≠金額","")`});
+    } else {
+      const itemShare={};
+      items.forEach((it,ii)=>{
+        const sub=(it.price||0)*(it.qty||1); const who=(it.among&&it.among.length)?it.among:[];
+        put(r,0,S(no+'-'+(ii+1))); put(r,1,S('細項'));
+        [[2,'C'],[3,'D'],[5,'F'],[6,'G']].forEach(([c,L])=>{ const src=ws[X.utils.encode_cell({r:mr,c})]; put(r,c,{t:'s',v:src?src.v:'',f:`$${L}$${R}`}); });
+        put(r,4,S((it.name||'')+((it.qty||1)!==1?'*'+it.qty:'')));
+        who.forEach(m=>{ const mi=members.indexOf(m); if(mi<0) return; const v=sub/who.length; itemShare[m]=(itemShare[m]||0)+v; put(r,SPL0+mi,N(r2(v))); });
+        if((it.qty||1)!==1) put(r,NOTE,S('單價 '+(it.price||0).toLocaleString()+' × '+it.qty));
+        kinds[r]='item'; r++;
+      });
+      if(e.itemAdj){
+        const itemSum=Object.values(itemShare).reduce((s,v)=>s+v,0);
+        const d=(e.amount||0)-itemSum;
+        const txt=`相符（差額 ${d>0?'+':''}${Math.round(d).toLocaleString()} 按比例分攤）`;
+        put(mr,CHK,{t:'s',v:splitBad?'不符：分攤合計≠金額':txt,f:`IF(ABS(SUM(${splitRng})-H${R})>1,"不符：分攤合計≠金額","${txt}")`});
+      } else {
+        const a=R+1, b=R+items.length;
+        const terms=members.map((m,mi)=>`(ABS(SUM(${col(SPL0+mi)}${a}:${col(SPL0+mi)}${b})-N(${col(SPL0+mi)}${R}))>1)`).join('+');
+        const itemBad=members.some(m=>Math.abs((itemShare[m]||0)-(share[m]||0))>1);
+        put(mr,CHK,{t:'s',v:splitBad?'不符：分攤合計≠金額':(itemBad?'不符：細項分攤≠主筆':'相符'),f:`IF(ABS(SUM(${splitRng})-H${R})>1,"不符：分攤合計≠金額",IF((${terms})>0,"不符：細項分攤≠主筆","相符"))`});
+      }
+    }
+    if(notes) put(mr,NOTE,S(notes));
   });
-  const lastRow=totalStart+curs.length-1;
-  ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(lastRow,last-1),c:NC-1}});
-  // 欄寬：依內容長度估算（中文字算兩格）
-  const w=v=>String(v==null?'':v).split('').reduce((s,ch)=>s+(ch.charCodeAt(0)>255?2:1),0);
-  ws['!cols']=header.map((hd,i)=>({wch:Math.min(40,Math.max(w(hd),...rows.map(r=>w(typeof r[i]==='number'?r[i].toLocaleString():r[i])))+2)}));
+  const last=r;                                // 最後一筆資料的 Excel 列號
+  const rng=c=>`$${c}$2:$${c}$${last}`;
+  const curs=[...new Set(mains.map(m=>m.cur))];
+  r++;                                         // 空一列
+  curs.forEach(c=>{
+    const ms=mains.filter(m=>m.cur===c);
+    put(r,3,S('合計（只算主筆）')); put(r,6,S(c));
+    put(r,7,{t:'n',v:r2(ms.reduce((s,m)=>s+m.amount,0)),f:`SUMIFS(${rng('H')},${rng('B')},"主筆",${rng('G')},"${c}")`});
+    members.forEach((m,mi)=>{ const L=col(SPL0+mi); put(r,SPL0+mi,{t:'n',v:r2(ms.reduce((s,x)=>s+(x.share[m]||0),0)),f:`SUMIFS(${rng(L)},${rng('B')},"主筆",${rng('G')},"${c}")`}); });
+    kinds[r]='total'; r++;
+  });
+  ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:r-1,c:NC-1}});
   ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:last-1,c:NC-1}})};
+  ws['!cols']=[7,6,12.5,34,32,6,6,10,8,...members.map(()=>11),20,50].map(w=>({wch:w}));
   // 樣式（只有 xlsx-js-style 會寫出；一般 SheetJS 會忽略）
-  const border={top:{style:'thin',color:{rgb:'D5D9E0'}},bottom:{style:'thin',color:{rgb:'D5D9E0'}},left:{style:'thin',color:{rgb:'D5D9E0'}},right:{style:'thin',color:{rgb:'D5D9E0'}}};
+  const bc={style:'thin',color:{rgb:'D5D9E0'}}; const border={top:bc,bottom:bc,left:bc,right:bc};
   const font={name:'微軟正黑體',sz:11};
-  for(let r=0;r<=lastRow;r++){
-    if(r===last) continue;                     // 資料與合計之間的空白列
+  const isNum=c=>c===7||(c>=SPL0&&c<CHK);
+  for(let rr=0;rr<r;rr++){
+    const k=kinds[rr]; if(!k) continue;
     for(let c=0;c<NC;c++){
-      const ref=X.utils.encode_cell({r,c});
-      const cell=ws[ref]||(ws[ref]={t:'s',v:''});
-      const isNum=c===AMT||(c>=SPL0&&c<NOTE);
-      if(isNum&&cell.t==='n') cell.z='#,##0';
-      if(r===0) cell.s={font:{...font,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'4E8A87'}},alignment:{horizontal:'center',vertical:'center'},border};
-      else if(r>last) cell.s={font:{...font,bold:true},fill:{fgColor:{rgb:'EDE0D0'}},alignment:{horizontal:isNum?'right':'left',vertical:'center'},border,...(isNum?{numFmt:'#,##0'}:{})};
-      else cell.s={font,...(r%2===0?{fill:{fgColor:{rgb:'F6F5FA'}}}:{}),alignment:{horizontal:isNum?'right':(c===0||c===2||c===3?'center':'left'),vertical:'center',wrapText:c===NOTE},border,...(isNum?{numFmt:'#,##0'}:{})};
+      const ref=X.utils.encode_cell({r:rr,c}); const cell=ws[ref]||(ws[ref]={t:'s',v:''});
+      if(isNum(c)&&cell.t==='n') cell.z='#,##0';
+      const al={vertical:'center',horizontal:(c<=1&&k!=='day')?'center':(isNum(c)?'right':'left'),wrapText:c===NOTE};
+      const nf=isNum(c)?{numFmt:'#,##0'}:{};
+      if(k==='head'||k==='total') cell.s={font:{...font,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'4E8A87'}},alignment:{...al,horizontal:k==='head'?'center':al.horizontal},border,...nf};
+      else if(k==='day') cell.s={font:{...font,bold:true,color:{rgb:'8A5A2B'}},fill:{fgColor:{rgb:'F3E6D8'}},alignment:al,border};
+      else if(k==='main') cell.s={font:{...font,bold:[0,1,2,3,7,8].includes(c)},fill:{fgColor:{rgb:'E3EEEC'}},alignment:al,border,...nf};
+      else cell.s={font:{...font,sz:10,...([0,1,2,3,5,6].includes(c)?{color:{rgb:'9A9A9A'}}:{})},alignment:{...al,...(c===4?{indent:1}:{})},border,...nf};
     }
   }
   ws['!rows']=[{hpt:22}];
+  const chkVals=[]; let itemCount=0;
+  for(let q=1;q<last;q++){ if(kinds[q]==='main'){ const x=ws[X.utils.encode_cell({r:q,c:CHK})]; chkVals.push(x?x.v:''); } if(kinds[q]==='item') itemCount++; }
+  return {ws,stats:sbBuildStatsSheet(X,{members,mains,curs,last,SPL0,CHK,chkVals,itemCount})};
+}
+function sbBuildStatsSheet(X,{members,mains,curs,last,SPL0,CHK,chkVals,itemCount}){
+  const ws={}; const st=[]; const col=i=>X.utils.encode_col(i); const r2=v=>Math.round((v||0)*100)/100;
+  const put=(r,c,cell)=>{ ws[X.utils.encode_cell({r,c})]=cell; };
+  const S=v=>({t:'s',v:String(v)});
+  const Q=`'${SB_XSHEET}'!`; const rg=L=>`${Q}$${L}$2:$${L}$${last}`;
+  const sumifs=(L,conds)=>`SUMIFS(${rg(L)},${rg('B')},"主筆"${conds.map(([cl,v])=>`,${rg(cl)},"${v}"`).join('')})`;
+  const sty=(r,kind,n)=>{ st.push([r,kind,n]); };
+  const NC=Math.max(6,members.length+3);
+  let r=0;
+  put(r,0,S('說明：所有統計只加總「主筆」列（細項不重複計算）；不同幣別分開統計，未換算匯率；已完成的轉帳不計入。')); sty(r,'note'); r+=2;
+  const catKeys=Object.keys(SBCAT).filter(k=>k!=='settlement'&&mains.some(m=>m.cat===SBCAT[k].lbl));
+  curs.forEach(c=>{
+    const ms=mains.filter(m=>m.cur===c);
+    put(r,0,S(`一、各類別花費（${c}）`)); sty(r,'title'); r++;
+    put(r,0,S('類別總額＝該類別所有主筆金額；後面是每人在該類別分攤到的金額')); sty(r,'note'); r++;
+    ['類別','總金額',...members.map(m=>m+' 分攤'),'筆數'].forEach((t,i)=>put(r,i,S(t))); sty(r,'head',members.length+3); r++;
+    const r0=r;
+    catKeys.forEach(k=>{
+      const lbl=SBCAT[k].lbl; const cm=ms.filter(m=>m.cat===lbl);
+      put(r,0,S(lbl));
+      put(r,1,{t:'n',v:r2(cm.reduce((s,m)=>s+m.amount,0)),f:sumifs('H',[['F',lbl],['G',c]])});
+      members.forEach((m,mi)=>put(r,2+mi,{t:'n',v:r2(cm.reduce((s,x)=>s+(x.share[m]||0),0)),f:sumifs(col(SPL0+mi),[['F',lbl],['G',c]])}));
+      put(r,2+members.length,{t:'n',v:cm.length,f:`COUNTIFS(${rg('B')},"主筆",${rg('F')},"${lbl}",${rg('G')},"${c}")`});
+      sty(r,'row',members.length+3); r++;
+    });
+    put(r,0,S('合計'));
+    for(let i=1;i<members.length+3;i++){ let v=0; for(let q=r0;q<r;q++){ const x=ws[X.utils.encode_cell({r:q,c:i})]; v+=x?x.v:0; } put(r,i,{t:'n',v:r2(v),f:`SUM(${col(i)}${r0+1}:${col(i)}${r})`}); }
+    sty(r,'sum',members.length+3); r+=2;
+  });
+  put(r,0,S('二、各成員花費與結算')); sty(r,'title'); r++;
+  put(r,0,S('分攤＝自己實際花掉的；代墊＝自己付錢的總額；淨額為正代表別人要還你，為負代表你要還別人')); sty(r,'note'); r++;
+  curs.forEach(c=>{
+    const ms=mains.filter(m=>m.cur===c);
+    [`成員（${c}）`,'自己的分攤','實際代墊','淨額（應收+／應付−）'].forEach((t,i)=>put(r,i,S(t))); sty(r,'head',4); r++;
+    const r0=r;
+    members.forEach((m,mi)=>{
+      const sh=ms.reduce((s,x)=>s+(x.share[m]||0),0);
+      const pd=ms.reduce((s,x)=>s+(x.paid[m]||0),0);
+      // 多人付款的支出無法用 SUMIFS 依付款人加總，直接加上該成員付的金額
+      const extra=r2(ms.filter(x=>x.multiPay).reduce((s,x)=>s+(x.paid[m]||0),0));
+      put(r,0,S(m));
+      put(r,1,{t:'n',v:r2(sh),f:sumifs(col(SPL0+mi),[['G',c]])});
+      put(r,2,{t:'n',v:r2(pd),f:sumifs('H',[['I',m],['G',c]])+(extra?'+'+extra:'')});
+      put(r,3,{t:'n',v:r2(pd-sh),f:`C${r+1}-B${r+1}`});
+      sty(r,'row',4); r++;
+    });
+    put(r,0,S('合計'));
+    for(let i=1;i<4;i++){ let v=0; for(let q=r0;q<r;q++) v+=ws[X.utils.encode_cell({r:q,c:i})].v; put(r,i,{t:'n',v:r2(v),f:`SUM(${col(i)}${r0+1}:${col(i)}${r})`}); }
+    sty(r,'sum',4); r+=2;
+  });
+  put(r,0,S('三、資料檢查')); sty(r,'title'); r++;
+  put(r,0,S('數字不為 0 時，請到「分帳紀錄」的「細項檢查」欄篩選「不符」查看')); sty(r,'note'); r++;
+  ['檢查項目','結果'].forEach((t,i)=>put(r,i,S(t))); sty(r,'head',2); r++;
+  const chkL=col(CHK);
+  curs.forEach(c=>{
+    const ms=mains.filter(m=>m.cur===c);
+    const v=ms.reduce((s,m)=>s+m.amount-Object.values(m.share).reduce((a,b)=>a+b,0),0);
+    put(r,0,S(`主筆金額合計 − 分攤合計（${c}）`));
+    put(r,1,{t:'n',v:r2(v),f:sumifs('H',[['G',c]])+members.map((m,mi)=>'-'+sumifs(col(SPL0+mi),[['G',c]])).join('')});
+    sty(r,'row',2); r++;
+  });
+  [['「分攤合計≠金額」筆數',`COUNTIF(${rg(chkL)},"不符：分攤*")`,'不符：分攤'],['「細項分攤≠主筆」筆數',`COUNTIF(${rg(chkL)},"不符：細項*")`,'不符：細項']].forEach(([t,f,pre])=>{ put(r,0,S(t)); put(r,1,{t:'n',v:chkVals.filter(v=>v.startsWith(pre)).length,f}); sty(r,'row',2); r++; });
+  put(r,0,S('主筆筆數 / 細項列數')); put(r,1,{t:'s',v:mains.length+' / '+itemCount,f:`COUNTIF(${rg('B')},"主筆")&" / "&COUNTIF(${rg('B')},"細項")`}); sty(r,'row',2); r++;
+  ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:r-1,c:NC-1}});
+  ws['!cols']=[{wch:30},...Array(NC-1).fill({wch:14})];
+  const font={name:'微軟正黑體',sz:11}; const bc={style:'thin',color:{rgb:'D5D9E0'}}; const border={top:bc,bottom:bc,left:bc,right:bc};
+  st.forEach(([rr,kind,n])=>{
+    for(let c=0;c<(n||1);c++){
+      const ref=X.utils.encode_cell({r:rr,c}); const cell=ws[ref]||(ws[ref]={t:'s',v:''});
+      if(cell.t==='n') cell.z='#,##0';
+      const al={vertical:'center',horizontal:c===0?'left':'right'};
+      if(kind==='note') cell.s={font:{...font,sz:9,color:{rgb:'888888'}}};
+      else if(kind==='title') cell.s={font:{...font,sz:13,bold:true,color:{rgb:'4E8A87'}}};
+      else if(kind==='head') cell.s={font:{...font,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'4E8A87'}},alignment:{vertical:'center',horizontal:'center'},border};
+      else if(kind==='sum') cell.s={font:{...font,bold:true},fill:{fgColor:{rgb:'E3EEEC'}},alignment:al,border,numFmt:'#,##0'};
+      else cell.s={font,alignment:al,border,numFmt:'#,##0'};
+    }
+  });
   return ws;
 }
 async function sbExportExcel(){
@@ -2992,9 +3122,10 @@ async function sbExportExcel(){
   toast('正在產生 Excel…');
   const styled=await sbLoadStyledXLSX();
   const X=styled||XLSX;
-  const ws=sbBuildExportSheet(X);
+  const {ws,stats}=sbBuildExport(X);
   const wb=X.utils.book_new();
-  X.utils.book_append_sheet(wb,ws,'分帳紀錄');
+  X.utils.book_append_sheet(wb,ws,SB_XSHEET);
+  X.utils.book_append_sheet(wb,stats,'統計');
   const trip=DATA.trips[ACTIVE];
   const date=new Date().toISOString().slice(0,10);
   const filename=('分帳紀錄_'+(trip?trip.name:'trip')+'_'+date+'.xlsx').replace(/[\\\/:*?"<>|]/g,'_');
@@ -3074,6 +3205,8 @@ function sbOpenAddModal(idOrNull){
   const exp=idOrNull?sbData().expenses[idOrNull]:null;
   sbEditingId=idOrNull||null;
   sbSplitMode=(exp&&exp.splitMode)||'equal';
+  sbItems=((exp&&exp.items)||[]).map(it=>({name:it.name||'',price:it.price||'',qty:it.qty||1,among:(it.among||[]).slice()}));
+  sbItemAdj=!!(exp&&exp.itemAdj); sbTotalAuto=false;
   const cur=sbCurrency();
   const defPayer=exp?exp.payer:(members.includes(ME)?ME:members[0]);
   modal(`<div class="modal-title">${fi('dollar-sign',15)} ${idOrNull?'編輯支出':'新增支出'}</div>
@@ -3084,8 +3217,8 @@ function sbOpenAddModal(idOrNull){
         <select class="tag-input" id="sb-e-cat">${Object.keys(SBCAT).filter(k=>k!=='settlement').map(k=>`<option value="${k}" ${(exp&&exp.cat)===k?'selected':''}>${SBCAT[k].lbl}</option>`).join('')}</select></div>
       <div style="flex:1"><label class="fld">金額</label>
         <div style="display:flex;gap:6px">
-          <select class="tag-input" id="sb-e-cur" style="flex:0 0 66px;padding-left:6px;padding-right:2px" onchange="sbRenderSplitUI(null)">${['NT$','$','¥','€','HK$','KRW','JPY','USD'].map(c=>`<option value="${c}" ${(exp?exp.currency||sbCurrency():(localStorage.getItem('sb_last_cur')||sbCurrency()))===c?'selected':''}>${c}</option>`).join('')}</select>
-          <input type="number" class="tag-input" id="sb-e-amount" placeholder="0" min="0" value="${esc((exp&&exp.amount)||'')}" style="flex:1" oninput="sbOnAmtChange()">
+          <select class="tag-input" id="sb-e-cur" style="flex:0 0 66px;padding-left:6px;padding-right:2px" onchange="sbOnCurChange()">${['NT$','$','¥','€','HK$','KRW','JPY','USD'].map(c=>`<option value="${c}" ${(exp?exp.currency||sbCurrency():(localStorage.getItem('sb_last_cur')||sbCurrency()))===c?'selected':''}>${c}</option>`).join('')}</select>
+          <input type="number" class="tag-input" id="sb-e-amount" placeholder="0" min="0" value="${esc((exp&&exp.amount)||'')}" style="flex:1" oninput="sbTotalAuto=false;sbOnAmtChange()">
         </div>
       </div>
     </div>
@@ -3097,12 +3230,16 @@ function sbOpenAddModal(idOrNull){
       <button data-v="amount" class="${sbSplitMode==='amount'?'on':''}" onclick="sbSetSM('amount')">依金額</button>
     </div>
     <div id="sb-split-ui" style="margin-top:8px"></div>
+    <div id="sb-items-wrap" style="margin-top:12px;border:1.5px dashed var(--border);border-radius:10px;background:var(--bg)">
+      <button type="button" id="sb-items-head" onclick="sbToggleItems()" style="width:100%;display:flex;align-items:center;gap:6px;padding:10px 12px;background:none;border:none;font-family:inherit;font-size:12px;font-weight:700;color:var(--text-muted);cursor:pointer;text-align:left"></button>
+      <div id="sb-items-body" style="display:none;padding:0 10px 10px"></div>
+    </div>
     <label class="fld" style="margin-top:10px">備註（選填）</label><input class="tag-input" id="sb-e-notes" value="${esc((exp&&exp.notes)||'')}">
     <div class="modal-acts">${idOrNull?`<button class="btn danger" onclick="sbDeleteExpense()">刪除</button>`:''}<button class="btn" style="flex:1" onclick="sbSubmitExpense()">${idOrNull?'儲存修改':'確認新增'}</button></div>`);
-  setTimeout(()=>sbRenderSplitUI(exp),0);
+  setTimeout(()=>{ sbRenderSplitUI(exp); sbRenderItems(); if(sbItemsActive()) sbApplyItems(); },0);
 }
 function sbCurExpCurrency(){ return $('sb-e-cur')?.value||sbCurrency(); }
-function sbSetSM(mode){ sbSplitMode=mode; document.querySelectorAll('#sb-e-mode button').forEach(b=>b.classList.toggle('on',b.dataset.v===mode)); sbRenderSplitUI(null); }
+function sbSetSM(mode){ if(sbItemsActive()&&mode!=='amount'){ toast('有細項時，分攤金額由細項自動計算'); return; } sbSplitMode=mode; document.querySelectorAll('#sb-e-mode button').forEach(b=>b.classList.toggle('on',b.dataset.v===mode)); sbRenderSplitUI(null); }
 function sbRenderSplitUI(exp){
   const members=sbMembers();
   const c=$('sb-split-ui'); if(!c) return;
@@ -3120,25 +3257,124 @@ function sbRenderSplitUI(exp){
     sbUpdRatioHint();
   } else {
     const total=parseFloat($('sb-e-amount')?.value)||0;
+    // 編輯「依金額」的舊紀錄時，分攤金額視為使用者已填過，之後改總金額不會覆蓋
+    sbAmtTouched=!!(exp&&exp.splitMode==='amount');
     c.innerHTML=`<div style="display:flex;flex-direction:column;gap:6px">${members.map(m=>{
       let amt=total/members.length;
       if(exp&&exp.splitMode==='amount'){const d=(exp.splitDetails||[]).find(x=>x.name===m); amt=d?d.amount:0;}
-      return `<div style="display:flex;align-items:center;gap:8px"><span style="flex:0 0 62px;font-size:13px;font-weight:700">${esc(m)}</span><input type="number" class="tag-input sb-ainp" data-m="${esc(m)}" value="${amt.toFixed(0)}" min="0" style="flex:1" oninput="sbUpdAmtHint()"><span style="font-size:12px;color:var(--text-muted)">${esc(sbCurExpCurrency())}</span></div>`;
+      return `<div style="display:flex;align-items:center;gap:8px"><span style="flex:0 0 62px;font-size:13px;font-weight:700">${esc(m)}</span><input type="number" class="tag-input sb-ainp" data-m="${esc(m)}" value="${amt.toFixed(0)}" min="0" style="flex:1" oninput="sbAmtTouched=true;sbUpdAmtHint()"><span class="sb-acur" style="font-size:12px;color:var(--text-muted)">${esc(sbCurExpCurrency())}</span></div>`;
     }).join('')}</div><div style="font-size:11px;margin-top:6px" id="sb-split-hint"></div>`;
     sbUpdAmtHint();
   }
 }
 function sbOnAmtChange(){
-  if(sbSplitMode==='amount'){
+  if(sbSplitMode!=='amount'){ sbUpdItemsHint(); return; }
+  // 還沒手動填過分攤金額時才自動平均帶入；填過之後改總金額只更新差額提示，不清掉已填的金額
+  if(!sbAmtTouched){
     const a=parseFloat($('sb-e-amount')?.value)||0;
     const ins=document.querySelectorAll('.sb-ainp'); const each=ins.length?(a/ins.length).toFixed(0):0;
-    ins.forEach(i=>i.value=each); sbUpdAmtHint();
+    ins.forEach(i=>i.value=each);
   }
+  if(sbItemsActive()){ sbApplyItems(); return; }
+  sbUpdAmtHint();
+}
+function sbOnCurChange(){
+  // 切換幣別只更新顯示，不重畫分攤欄位（避免已填的分攤金額被重設）
+  if(sbSplitMode==='amount'){ document.querySelectorAll('.sb-acur').forEach(e=>e.textContent=sbCurExpCurrency()); sbUpdAmtHint(); }
+  sbRenderItems();
+}
+/* ── 花費細項（預設收合；填了細項就自動算出「依金額」的分攤並鎖住） ── */
+function sbItemSub(it){ return (parseFloat(it.price)||0)*(parseFloat(it.qty)||0); }
+function sbValidItems(){ return sbItems.filter(it=>sbItemSub(it)>0); }
+function sbItemsActive(){ return sbValidItems().length>0; }
+function sbItemsSum(){ return sbValidItems().reduce((s,it)=>s+sbItemSub(it),0); }
+// 依細項算出每人分攤；sbItemAdj 時把「總額−細項合計」按比例分給大家（免稅、折扣）
+function sbItemShares(total){
+  const share={}; sbValidItems().forEach(it=>{ const who=it.among.length?it.among:[]; who.forEach(m=>{ share[m]=(share[m]||0)+sbItemSub(it)/who.length; }); });
+  const sum=Object.values(share).reduce((s,v)=>s+v,0);
+  if(sbItemAdj&&sum>0&&total>0) Object.keys(share).forEach(m=>share[m]=share[m]*total/sum);
+  return share;
+}
+function sbToggleItems(force){
+  const b=$('sb-items-body'); if(!b) return;
+  const open=force!=null?force:b.style.display==='none';
+  b.style.display=open?'block':'none';
+  if(open&&!sbItems.length) sbAddItem();
+  sbRenderItemsHead();
+}
+function sbRenderItemsHead(){
+  const h=$('sb-items-head'); if(!h) return;
+  const open=$('sb-items-body')?.style.display!=='none'; const n=sbValidItems().length; const cc=sbCurExpCurrency();
+  h.innerHTML=`${fi('list',13)} <span style="flex:1">花費細項（選填）${n?` · ${n} 項 ${esc(cc)}${Math.round(sbItemsSum()).toLocaleString()}`:''}</span><span style="font-size:11px">${open?'收合 ▴':'展開 ▾'}</span>`;
+}
+function sbRenderItems(){
+  const b=$('sb-items-body'); if(!b) return;
+  const members=sbMembers(); const cc=esc(sbCurExpCurrency());
+  b.innerHTML=sbItems.map((it,i)=>`<div style="background:#fff;border:1px solid var(--border-light);border-radius:9px;padding:8px;margin-bottom:8px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="tag-input" placeholder="品項，例：發熱衣" value="${esc(it.name)}" style="flex:1;padding:8px 10px" oninput="sbItems[${i}].name=this.value">
+        <button type="button" onclick="sbDelItem(${i})" aria-label="刪除細項" style="flex:0 0 auto;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px">${fi('x',16)}</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:12px;color:var(--text-muted)">
+        <input type="number" class="tag-input" placeholder="單價" min="0" value="${esc(it.price)}" style="flex:1;padding:8px 10px" oninput="sbItems[${i}].price=this.value;sbOnItemChange(${i})">
+        <span>×</span>
+        <input type="number" class="tag-input" placeholder="數量" min="1" value="${esc(it.qty)}" style="flex:0 0 58px;padding:8px 6px" oninput="sbItems[${i}].qty=this.value;sbOnItemChange(${i})">
+        <span style="flex:0 0 auto;min-width:72px;text-align:right;font-weight:700;color:var(--text-primary)" id="sb-item-sub-${i}">= ${cc}${Math.round(sbItemSub(it)).toLocaleString()}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px">${members.map(m=>`<button type="button" class="chip ${it.among.includes(m)?'on':''}" onclick="event.preventDefault();sbToggleItemWho(${i},this)" data-m="${esc(m)}">${esc(m)}</button>`).join('')}<span style="font-size:10px;color:var(--text-muted);align-self:center">${it.among.length>1?'多人平分':''}</span></div>
+    </div>`).join('')
+    +`<button type="button" class="btn sm ghost" style="width:100%" onclick="sbAddItem()">${fi('plus',13)} 新增細項</button>
+    <div id="sb-items-hint" style="font-size:11px;margin-top:8px;line-height:1.7"></div>`;
+  sbRenderItemsHead(); sbUpdItemsHint();
+}
+function sbAddItem(){
+  const members=sbMembers(); const last=sbItems[sbItems.length-1];
+  const def=last&&last.among.length?last.among.slice():[members.includes(ME)?ME:members[0]];
+  if(!sbItemsActive()&&!(parseFloat($('sb-e-amount')?.value)>0)) sbTotalAuto=true;   // 總金額還沒填：先跟著細項合計
+  sbItems.push({name:'',price:'',qty:1,among:def}); sbRenderItems();
+  const ins=document.querySelectorAll('#sb-items-body input:not([type=number])'); ins[ins.length-1]?.focus();
+}
+function sbDelItem(i){ sbItems.splice(i,1); sbRenderItems(); sbApplyItems(); }
+function sbToggleItemWho(i,btn){
+  const it=sbItems[i], m=btn.dataset.m;
+  if(it.among.includes(m)){ if(it.among.length===1){ toast('每個細項至少要有一位分攤對象'); return; } it.among=it.among.filter(x=>x!==m); }
+  else it.among.push(m);
+  sbRenderItems(); sbApplyItems();
+}
+function sbOnItemChange(i){
+  const el=$('sb-item-sub-'+i); if(el) el.textContent='= '+sbCurExpCurrency()+Math.round(sbItemSub(sbItems[i])).toLocaleString();
+  sbRenderItemsHead(); sbApplyItems();
+}
+// 把細項結果帶入「依金額」分攤欄位並鎖住；沒有細項時解除鎖定
+function sbApplyItems(){
+  const active=sbItemsActive();
+  document.querySelectorAll('#sb-e-mode button').forEach(b=>{ b.style.opacity=active&&b.dataset.v!=='amount'?'.4':''; });
+  if(!active){ document.querySelectorAll('.sb-ainp').forEach(i=>{i.readOnly=false;i.style.background='';}); const n=$('sb-items-lock'); if(n) n.remove(); sbUpdItemsHint(); return; }
+  if(sbTotalAuto){ const a=$('sb-e-amount'); if(a) a.value=Math.round(sbItemsSum()*100)/100; }
+  if(sbSplitMode!=='amount') sbSetSM('amount');
+  const total=parseFloat($('sb-e-amount')?.value)||0; const share=sbItemShares(total);
+  document.querySelectorAll('.sb-ainp').forEach(i=>{ const v=share[i.dataset.m]||0; i.value=Number.isInteger(v)?v:v.toFixed(0); i.readOnly=true; i.style.background='var(--border-light)'; });
+  sbAmtTouched=true;
+  if(!$('sb-items-lock')){ const c=$('sb-split-ui'); if(c) c.insertAdjacentHTML('afterbegin',`<div id="sb-items-lock" style="font-size:11px;color:var(--primary);font-weight:700;margin-bottom:6px">${fi('lock',11)} 已由下方細項自動帶入，要修改請改細項</div>`); }
+  sbUpdAmtHint(); sbUpdItemsHint();
+}
+function sbUpdItemsHint(){
+  const h=$('sb-items-hint'); if(!h) return;
+  if(!sbItemsActive()){ h.innerHTML='<span style="color:var(--text-muted)">填了單價的細項會自動加總到上方的「依金額」分攤。</span>'; return; }
+  const cc=esc(sbCurExpCurrency()); const sum=sbItemsSum(); const total=parseFloat($('sb-e-amount')?.value)||0; const d=total-sum;
+  const lnk='background:none;border:none;color:var(--primary);font-weight:700;font-size:11px;cursor:pointer;padding:0 0 0 6px;font-family:inherit;text-decoration:underline';
+  if(Math.abs(d)<0.5){ h.innerHTML=`<span style="color:var(--success)">✓ 細項合計 ${cc}${Math.round(sum).toLocaleString()}，與總金額相符</span>`; return; }
+  const dTxt=(d>0?'總額多 ':'總額少 ')+cc+Math.round(Math.abs(d)).toLocaleString();
+  if(sbItemAdj){ h.innerHTML=`<span style="color:var(--success)">✓ 細項合計 ${cc}${Math.round(sum).toLocaleString()}，${dTxt}，已按比例分給大家</span><button type="button" style="${lnk}" onclick="sbItemAdj=false;sbApplyItems()">取消</button>`; return; }
+  h.innerHTML=`<span style="color:var(--danger)">⚠ 細項合計 ${cc}${Math.round(sum).toLocaleString()}／總額 ${cc}${Math.round(total).toLocaleString()}（${dTxt}）</span><br>
+    <button type="button" style="${lnk.replace('0 0 0 6px','0')}" onclick="sbItemAdj=true;sbApplyItems()">差額按比例分給大家（免稅、折扣）</button>
+    <button type="button" style="${lnk}" onclick="$('sb-e-amount').value=Math.round(sbItemsSum()*100)/100;sbApplyItems()">總額改成 ${cc}${Math.round(sum).toLocaleString()}</button>`;
 }
 function sbUpdEqHint(){ const n=document.querySelectorAll('#sb-split-ui .chip.on').length; const h=$('sb-split-hint'); if(h) h.textContent='均分 '+n+' 位成員'; }
 function sbUpdRatioHint(){ const t=[...document.querySelectorAll('.sb-rinp')].reduce((s,i)=>s+(parseFloat(i.value)||0),0); const h=$('sb-split-hint'); if(!h) return; if(Math.abs(t-100)<0.01){h.style.color='var(--success)';h.textContent='✓ 加總 100%';} else {h.style.color='var(--danger)';h.textContent='⚠ 目前 '+t.toFixed(1)+'%';} }
-function sbUpdAmtHint(){ const t=[...document.querySelectorAll('.sb-ainp')].reduce((s,i)=>s+(parseFloat(i.value)||0),0); const a=parseFloat($('sb-e-amount')?.value)||0; const h=$('sb-split-hint'); if(!h) return; const cc=sbCurExpCurrency(); if(Math.abs(t-a)<0.01){h.style.color='var(--success)';h.textContent='✓ 加總 '+cc+t.toLocaleString();} else {h.style.color='var(--danger)';h.textContent='⚠ 加總 '+cc+t.toFixed(0)+'（差 '+cc+(a-t).toFixed(0)+'）';} }
+function sbUpdAmtHint(){ const t=[...document.querySelectorAll('.sb-ainp')].reduce((s,i)=>s+(parseFloat(i.value)||0),0); const a=parseFloat($('sb-e-amount')?.value)||0; const h=$('sb-split-hint'); if(!h) return; const cc=sbCurExpCurrency(); if(Math.abs(t-a)<0.01){h.style.color='var(--success)';h.textContent='✓ 加總 '+cc+t.toLocaleString();} else {const d=a-t; h.style.color='var(--danger)';h.textContent='⚠ 分攤合計 '+cc+Math.round(t).toLocaleString()+'／總額 '+cc+Math.round(a).toLocaleString()+'，'+(d>0?'還差 '+cc+Math.round(d).toLocaleString()+' 未分攤':'超出 '+cc+Math.round(-d).toLocaleString());} }
 function sbGetSplit(amt){
+  if(sbItemsActive()){ const sh=sbItemShares(amt); const data=Object.keys(sh).map(m=>({name:m,amount:Math.round(sh[m]*100)/100})); const t=data.reduce((s,d)=>s+d.amount,0); if(Math.abs(t-amt)>2) return null; return {mode:'amount',data}; }
   if(sbSplitMode==='equal'){ const chk=[...document.querySelectorAll('#sb-split-ui .chip.on')].map(b=>b.dataset.m); if(!chk.length) return null; const sh=amt/chk.length; return {mode:'equal',data:chk.map(m=>({name:m,amount:sh}))}; }
   if(sbSplitMode==='ratio'){ const rows=[...document.querySelectorAll('.sb-rinp')]; const t=rows.reduce((s,i)=>s+(parseFloat(i.value)||0),0); if(Math.abs(t-100)>0.01) return null; return {mode:'ratio',data:rows.map(i=>({name:i.dataset.m,amount:amt*(parseFloat(i.value)||0)/100}))}; }
   const rows=[...document.querySelectorAll('.sb-ainp')]; const t=rows.reduce((s,i)=>s+(parseFloat(i.value)||0),0); if(Math.abs(t-amt)>2) return null; return {mode:'amount',data:rows.map(i=>({name:i.dataset.m,amount:parseFloat(i.value)||0}))};
@@ -3149,10 +3385,13 @@ function sbSubmitExpense(){
   const currency=sbCurExpCurrency();
   if(!name){toast('請輸入品項名稱');return;} if(!amount||amount<=0){toast('請輸入有效金額');return;}
   const split=sbGetSplit(amount);
+  if(!split&&sbItemsActive()){ toast('細項合計與總金額不符，請按比例分配差額或修改總額'); sbToggleItems(true); return; }
   if(!split){ if(sbSplitMode==='ratio') toast('比例加總須等於 100%'); else if(sbSplitMode==='amount') toast('金額加總須等於總金額'); else toast('請選擇至少一位分攤對象'); return; }
   const notes=$('sb-e-notes').value.trim();
   const id=sbEditingId||uid();
   const obj={name,amount,currency,date,payer,cat,notes,splitMode:split.mode,splitAmong:split.data.map(d=>d.name),splitDetails:split.data,updatedBy:ME,updatedAt:Date.now()};
+  const items=sbValidItems().map((it,i)=>({name:it.name.trim()||('細項'+(i+1)),price:parseFloat(it.price)||0,qty:parseFloat(it.qty)||1,among:it.among.slice()}));
+  if(items.length){ obj.items=items; obj.itemAdj=sbItemAdj&&Math.abs(amount-sbItemsSum())>=0.5; }
   if(!sbEditingId) obj.createdAt=Date.now();
   fbSet('trips/'+ACTIVE+'/splitbill/expenses/'+id,obj);
   if(!sbData().currency) fbSet('trips/'+ACTIVE+'/splitbill/currency',currency);
